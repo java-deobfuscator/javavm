@@ -15,6 +15,7 @@ import com.javadeobfuscator.javavm.internals.LinkResolver;
 import com.javadeobfuscator.javavm.internals.SystemDictionary;
 import com.javadeobfuscator.javavm.internals.VMSymbols;
 import com.javadeobfuscator.javavm.mirrors.JavaClass;
+import com.javadeobfuscator.javavm.mirrors.JavaField;
 import com.javadeobfuscator.javavm.nativeimpls.*;
 import com.javadeobfuscator.javavm.oops.Oop;
 import com.javadeobfuscator.javavm.oops.ThreadOop;
@@ -26,6 +27,7 @@ import com.javadeobfuscator.javavm.values.prim.JInteger;
 import com.javadeobfuscator.javavm.values.prim.JLong;
 import org.apache.commons.lang3.StringEscapeUtils;
 import org.apache.commons.lang3.StringUtils;
+import org.apache.commons.lang3.tuple.Pair;
 import org.objectweb.asm.ClassReader;
 import org.objectweb.asm.Opcodes;
 import org.objectweb.asm.Type;
@@ -76,6 +78,7 @@ public class VirtualMachine {
             Opcodes.ACC_ENUM |
             Opcodes.ACC_SYNTHETIC;
     public static boolean UNKNOWNS_ALLOWED = true;
+    public static boolean TRACE = false;
     public static boolean DEBUG = false;
     public static boolean DEBUG_PRINT_EXCEPTIONS = false;
     public static List<String> DEBUG_CLASSES = Arrays.asList();
@@ -570,6 +573,27 @@ public class VirtualMachine {
         sun_reflect_ConstantPool.registerNatives(this);
         sun_misc_URLClassPath.registerNatives(this);
         java_lang_invoke_MethodHandle = new java_lang_invoke_MethodHandle(this);
+        hook(new HookedMethod("javax/crypto/JarVerifier", "testSignatures", "(Ljava/security/cert/X509Certificate;Ljava/security/cert/CertificateFactory;)V", Cause.NONE, Effect.NONE).bind(new HookedMethod.Hook() {
+            @Override
+            public JavaWrapper execute(MethodExecution context, JavaWrapper instance, JavaWrapper[] args) {
+                // temp disable
+                return null;
+            }
+        }));
+        hook(new HookedMethod("javax/crypto/JarVerifier", "verify", "()V", Cause.NONE, Effect.NONE).bind(new HookedMethod.Hook() {
+            @Override
+            public JavaWrapper execute(MethodExecution context, JavaWrapper instance, JavaWrapper[] args) {
+                // temp disable
+                return null;
+            }
+        }));
+        hook(new HookedMethod("javax/crypto/JceSecurity", "canUseProvider", "(Ljava/security/Provider;)Z", Cause.NONE, Effect.NONE).bind(new HookedMethod.Hook() {
+            @Override
+            public JavaWrapper execute(MethodExecution context, JavaWrapper instance, JavaWrapper[] args) {
+                // temp disable
+                return newBoolean(true);
+            }
+        }));
         hook(new HookedMethod("java/lang/String", "charAt", "(I)C", Cause.NONE, Effect.NONE).bind(new HookedMethod.Hook() {
             @Override
             public JavaWrapper execute(MethodExecution context, JavaWrapper instance, JavaWrapper[] args) {
@@ -1133,7 +1157,7 @@ public class VirtualMachine {
         if (hookedMethod != null) {
             depth.set(depth.get() + 1);
             try {
-                if (DEBUG) {
+                if (TRACE) {
                     System.out.println(StringUtils.repeat("\t", depth.get()) + "Executing hook " + StringEscapeUtils.escapeJava(classNode.name) + "." + StringEscapeUtils.escapeJava(methodNode.name + "." + methodNode.desc));
                 }
                 execution.setReturnValue(hookedMethod.execute(execution, instance, params.toArray(new JavaWrapper[params.size()]), null));
@@ -1195,7 +1219,7 @@ public class VirtualMachine {
         if (hookedMethod != null) {
             depth.set(depth.get() + 1);
             try {
-                if (DEBUG) {
+                if (TRACE) {
                     System.out.println(StringUtils.repeat("\t", depth.get()) + "Executing hook " + StringEscapeUtils.escapeJava(classNode.name) + "." + StringEscapeUtils.escapeJava(methodNode.name + "." + methodNode.desc));
                 }
                 return hookedMethod.execute(execution, instance, params, prev);
@@ -1242,7 +1266,7 @@ public class VirtualMachine {
 
                 List<AbstractInsnNode> branchTo = new ArrayList<>();
 
-                if (DEBUG) {
+                if (TRACE) {
                     System.out.println(Thread.currentThread().getId() + StringUtils.repeat("\t", depth.get()) + "Executing " + StringEscapeUtils.escapeJava(classNode.name) + "." + StringEscapeUtils.escapeJava(method.name + "." + method.desc));
                 }
                 Thread currentThread = Thread.currentThread();
@@ -1579,21 +1603,16 @@ public class VirtualMachine {
                                         FieldInsnNode cast = (FieldInsnNode) now;
 
                                         JavaClass ownerClass = JavaClass.forName(this, cast.owner);
-                                        initialize(ownerClass);
 
-                                        FieldNode targetField;
-                                        do {
-                                            targetField = ownerClass.findFieldNode(cast.name, cast.desc, false);
-                                        }
-                                        while (targetField == null && (ownerClass = ownerClass.getSuperclass()) != null);
+                                        Pair<JavaClass, JavaField> targetField = ownerClass.findFieldNode(cast.name, cast.desc, true);
+                                        initialize(targetField.getLeft());
 
-                                        HookedFieldGetter hook = getHookedFieldGetter(ownerClass.getClassNode().name, cast.name, cast.desc);
-
+                                        HookedFieldGetter hook = getHookedFieldGetter(targetField.getLeft().getClassNode().name, cast.name, cast.desc);
                                         JavaWrapper value;
                                         if (hook != null) {
                                             value = hook.get(execution, null);
                                         } else {
-                                            value = ownerClass.getStaticField(cast.name, cast.desc);
+                                            value = targetField.getLeft().getStaticField(cast.name, cast.desc);
                                         }
 
                                         stack.push(value);
@@ -1604,20 +1623,15 @@ public class VirtualMachine {
                                         JavaWrapper obj = stack.pop();
 
                                         JavaClass ownerClass = JavaClass.forName(this, cast.owner);
-                                        initialize(ownerClass);
 
-                                        FieldNode targetField;
-                                        do {
-                                            targetField = ownerClass.findFieldNode(cast.name, cast.desc, false);
-                                        }
-                                        while (targetField == null && (ownerClass = ownerClass.getSuperclass()) != null);
+                                        Pair<JavaClass, JavaField> targetField = ownerClass.findFieldNode(cast.name, cast.desc, true);
+                                        initialize(targetField.getLeft());
 
-                                        HookedFieldSetter hook = getHookedFieldSetter(ownerClass.getClassNode().name, cast.name, cast.desc);
-
+                                        HookedFieldSetter hook = getHookedFieldSetter(targetField.getLeft().getClassNode().name, cast.name, cast.desc);
                                         if (hook != null) {
                                             hook.set(execution, null, obj);
                                         } else {
-                                            ownerClass.setStaticField(cast.name, cast.desc, obj);
+                                            targetField.getLeft().setStaticField(cast.name, cast.desc, obj);
                                         }
                                         break;
                                     }
@@ -1627,13 +1641,8 @@ public class VirtualMachine {
 
                                         JavaClass ownerClass = JavaClass.forName(this, cast.owner);
 
-                                        FieldNode targetField;
-                                        do {
-                                            targetField = ownerClass.findFieldNode(cast.name, cast.desc, false);
-                                        }
-                                        while (targetField == null && (ownerClass = ownerClass.getSuperclass()) != null);
-
-                                        HookedFieldGetter hook = getHookedFieldGetter(ownerClass.getClassNode().name, cast.name, cast.desc);
+                                        Pair<JavaClass, JavaField> targetField = ownerClass.findFieldNode(cast.name, cast.desc, true);
+                                        HookedFieldGetter hook = getHookedFieldGetter(targetField.getLeft().getClassNode().name, cast.name, cast.desc);
 
                                         JavaWrapper value;
                                         if (hook != null) {
@@ -1652,13 +1661,8 @@ public class VirtualMachine {
 
                                         JavaClass ownerClass = JavaClass.forName(this, cast.owner);
 
-                                        FieldNode targetField;
-                                        do {
-                                            targetField = ownerClass.findFieldNode(cast.name, cast.desc, false);
-                                        }
-                                        while (targetField == null && (ownerClass = ownerClass.getSuperclass()) != null);
-
-                                        HookedFieldSetter hook = getHookedFieldSetter(ownerClass.getClassNode().name, cast.name, cast.desc);
+                                        Pair<JavaClass, JavaField> targetField = ownerClass.findFieldNode(cast.name, cast.desc, true);
+                                        HookedFieldSetter hook = getHookedFieldSetter(targetField.getLeft().getClassNode().name, cast.name, cast.desc);
 
                                         if (hook != null) {
                                             hook.set(execution, instance, obj);
@@ -1749,13 +1753,14 @@ public class VirtualMachine {
                             }
 
                             if (execution.getOptions() != null && execution.getOptions().shouldRecord(now)) {
-                                if (snapshots[method.instructions.indexOf(now)] == null) {
-                                    InstructionSnapshot current = new InstructionSnapshot();
-                                    current.merge(stack.copy(), locals.copy());
-                                    snapshots[method.instructions.indexOf(now)] = current;
-                                } else {
-                                    snapshots[method.instructions.indexOf(now)].merge(stack.copy(), locals.copy());
-                                }
+                                execution.getOptions().notify(now, new ExecutionOptions.BreakpointInfo(stack, locals));
+//                                if (snapshots[method.instructions.indexOf(now)] == null) {
+//                                    InstructionSnapshot current = new InstructionSnapshot();
+//                                    current.merge(stack.copy(), locals.copy());
+//                                    snapshots[method.instructions.indexOf(now)] = current;
+//                                } else {
+//                                    snapshots[method.instructions.indexOf(now)].merge(stack.copy(), locals.copy());
+//                                }
                             }
 
                             now = now.getNext();

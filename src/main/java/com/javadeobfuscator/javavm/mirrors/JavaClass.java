@@ -27,6 +27,7 @@ import com.javadeobfuscator.javavm.utils.PrimitiveUtils;
 import com.javadeobfuscator.javavm.utils.TypeHelper;
 import com.javadeobfuscator.javavm.values.JavaObject;
 import com.javadeobfuscator.javavm.values.JavaWrapper;
+import org.apache.commons.lang3.tuple.Pair;
 import org.objectweb.asm.Opcodes;
 import org.objectweb.asm.Type;
 import org.objectweb.asm.tree.ClassNode;
@@ -118,13 +119,23 @@ public class JavaClass {
     }
 
 
-    public FieldNode findFieldNode(String name, String desc, boolean recursive) {
+    public Pair<JavaClass, JavaField> findFieldNode(String name, String desc, boolean recursive) {
         FieldNode result = fieldCache.get(name + ";" + desc);
         if (result != null) {
-            return result;
+            return Pair.of(this, new JavaField(this, result));
         } else {
+            if (!recursive) {
+                return null;
+            }
+            Pair<JavaClass, JavaField> parentResult;
+            for (JavaClass intf : getInterfaces()) {
+                parentResult = intf.findFieldNode(name, desc, true);
+                if (parentResult != null) {
+                    return parentResult;
+                }
+            }
             JavaClass superClass = getSuperclass();
-            return recursive && superClass != null ? superClass.findFieldNode(name, desc, true) : null;
+            return superClass != null ? superClass.findFieldNode(name, desc, true) : null;
         }
     }
 

@@ -193,7 +193,7 @@ public class sun_misc_Unsafe {
                 JavaArray arr = (JavaArray) args[0].get();
                 int index = (int) ((objectFieldOffset - 16) / 4);
                 JavaWrapper actual = arr.get(index);
-                if (actual.asObject().getHashCode() != expected.asObject().getHashCode()) {
+                if ((actual.is(NULL) ? 0 : actual.asObject().getHashCode()) != (expected.is(NULL) ? 0 : expected.asObject().getHashCode())) {
                     return vm.FALSE;
                 } else {
                     arr.set(index, args[3]);
