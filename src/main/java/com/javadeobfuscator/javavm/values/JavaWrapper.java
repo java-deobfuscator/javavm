@@ -124,10 +124,6 @@ public class JavaWrapper extends JavaValue {
         return _value.toString();
     }
 
-    public int getHashCode() {
-        return _value.getHashCode();
-    }
-
     @Override
     public int getSize() {
         return _value.getSize();

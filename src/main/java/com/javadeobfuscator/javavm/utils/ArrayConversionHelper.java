@@ -165,4 +165,12 @@ public class ArrayConversionHelper {
         }
         return resultingArray;
     }
+
+    public static int[] convertIntArray(JavaArray array) {
+        int[] resultingArray = new int[array.length()];
+        for (int i = 0; i < array.length(); i++) {
+            resultingArray[i] = array.get(i).asInt();
+        }
+        return resultingArray;
+    }
 }

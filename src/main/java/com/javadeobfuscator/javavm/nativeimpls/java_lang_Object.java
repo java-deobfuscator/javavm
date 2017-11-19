@@ -37,7 +37,7 @@ public class java_lang_Object {
             return inst.getJavaClass().getOop();
         }));
         vm.hook(HookGenerator.generateUnknownHandlingHook(vm, THIS, "hashCode", "()I", false, Cause.NONE, Effect.NONE, (ctx, inst, args) -> {
-            return vm.newInt(inst.getHashCode());
+            return vm.newInt(inst.asObject().getHashCode());
         }));
         vm.hook(HookGenerator.generateUnknownHandlingHook(vm, THIS, "clone", "()Ljava/lang/Object;", false, Cause.NONE, Effect.NONE, (ctx, inst, args) -> {
             if (!inst.getJavaClass().isArray()) {
@@ -50,7 +50,7 @@ public class java_lang_Object {
             }
 
             if (inst.is(JavaValueType.ARRAY)) {
-                JavaArray old = (JavaArray) inst.get();
+                JavaArray old = inst.asArray();
                 JavaArray array = new JavaArray(inst.getJavaClass(), new JavaWrapper[old.length()]);
                 for (int i = 0; i < old.length(); i++) {
                     array.set(i, old.get(i));

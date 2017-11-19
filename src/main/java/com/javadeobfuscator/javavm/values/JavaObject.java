@@ -151,6 +151,29 @@ public class JavaObject extends JavaValue {
         }
     }
 
+    public String javaToString() {
+        MethodNode toString;
+        JavaClass now = _class;
+        while (true) {
+            toString = ASMHelper.findMethod(now.getClassNode(), "toString", "()Ljava/lang/String;");
+            if (toString != null) {
+                break;
+            }
+            now = now.getSuperclass();
+            if (now == null) {
+                break;
+            }
+        }
+        boolean oldDebug = VirtualMachine.DEBUG;
+        try {
+            VirtualMachine.DEBUG = false;
+            JavaWrapper val = _class.getVM().internalExecute(now.getClassNode(), toString, JavaWrapper.wrap(this), null, null);
+            return _class.getVM().convertJavaObjectToString(val);
+        } finally {
+            VirtualMachine.DEBUG = oldDebug;
+        }
+    }
+
     public JavaObject vmClone() {
         JavaObject clone = new JavaObject(_class, _bytecodeType);
         clone.fields.putAll(fields);
@@ -163,7 +186,6 @@ public class JavaObject extends JavaValue {
         return originalClass;
     }
 
-    @Override
     public int getHashCode() {
         return hashcode;
     }

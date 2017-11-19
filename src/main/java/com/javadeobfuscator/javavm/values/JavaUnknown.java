@@ -17,7 +17,6 @@
 package com.javadeobfuscator.javavm.values;
 
 import com.javadeobfuscator.javavm.VirtualMachine;
-import com.javadeobfuscator.javavm.exceptions.ExecutionException;
 import com.javadeobfuscator.javavm.mirrors.JavaClass;
 import org.objectweb.asm.Type;
 
@@ -35,11 +34,16 @@ public class JavaUnknown extends JavaValue {
         this._class = type;
         this._cause = cause;
         this.vm = vm;
+        if (!VirtualMachine.UNKNOWNS_ALLOWED)
+            throw new RuntimeException("creating javaunknown " + cause);
     }
+
     public JavaUnknown(VirtualMachine vm, JavaClass type, UnknownCause cause, JavaValue... sources) {
         this._class = type;
         this._cause = cause.format(sources);
         this.vm = vm;
+        if (!VirtualMachine.UNKNOWNS_ALLOWED)
+            throw new RuntimeException("creating javaunknown " + cause);
     }
 
     @Override

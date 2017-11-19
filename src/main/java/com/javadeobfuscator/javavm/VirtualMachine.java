@@ -75,6 +75,7 @@ public class VirtualMachine {
             Opcodes.ACC_TRANSIENT |
             Opcodes.ACC_ENUM |
             Opcodes.ACC_SYNTHETIC;
+    public static boolean UNKNOWNS_ALLOWED = true;
     public static boolean DEBUG = false;
     public static boolean DEBUG_PRINT_EXCEPTIONS = false;
     public static List<String> DEBUG_CLASSES = Arrays.asList();

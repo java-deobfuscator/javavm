@@ -120,11 +120,6 @@ public abstract class JavaValue {
         return t.isAssignableFrom(s);
     }
 
-    public int getHashCode() {
-        //todo
-        return System.identityHashCode(this);
-    }
-
     /**
      * Get the size of this object
      *

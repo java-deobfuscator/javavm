@@ -70,7 +70,7 @@ public class java_lang_System {
             }
         }));
         vm.hook(HookGenerator.generateUnknownHandlingHook(vm, THIS, "identityHashCode", "(Ljava/lang/Object;)I", true, Cause.NONE, Effect.NONE, (ctx, inst, args) -> {
-            return JavaWrapper.createInteger(vm, args[0].is(JavaValueType.NULL) ? 0 : args[0].getHashCode());
+            return vm.newInt(args[0].is(JavaValueType.NULL) ? 0 : args[0].asObject().getHashCode());
         }));
         vm.hook(HookGenerator.generateUnknownHandlingHook(vm, THIS, "initProperties", "(Ljava/util/Properties;)Ljava/util/Properties;", true, Cause.NONE, Effect.NONE, (ctx, inst, args) -> {
             // todo so many more properties
