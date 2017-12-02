@@ -150,6 +150,25 @@ public class sun_misc_Unsafe {
         target.setField(targetField.name, targetField.desc, args[2]);
     }
 
+    private static void doSetBoolean(MethodExecution context, JavaWrapper inst, JavaWrapper[] args, boolean isVolatile) {
+        long objectFieldOffset = args[1].asLong();
+        JavaObject target = args[0].asObject();
+        FieldNode targetField;
+        JavaClass clazz = target.getJavaClass();
+        if (clazz == context.getVM().getSystemDictionary().getJavaLangClass()) {
+            targetField = target.getFieldByOffset(objectFieldOffset);
+            if (Modifier.isStatic(targetField.access)) {
+                clazz = java_lang_Class.getJavaClass(target);
+            }
+        } else {
+            targetField = clazz.getFieldByOffset(objectFieldOffset);
+        }
+        if (!targetField.desc.equals("Z")) {
+            throw new ExecutionException("weird, field type wasn't boolean: " + clazz.getClassNode().name + " " + targetField.name + targetField.desc);
+        }
+        target.setField(targetField.name, targetField.desc, args[2]);
+    }
+
     public static void registerNatives(VirtualMachine vm) {
         vm.hook(HookGenerator.generateUnknownHandlingHook(vm, "sun/misc/Unsafe", "staticFieldBase", "(Ljava/lang/reflect/Field;)Ljava/lang/Object;", true, Cause.ALL, Effect.NONE, (ctx, inst, args) -> {
             JavaClass owner = java_lang_Class.getJavaClass(args[0].asObject().getField("clazz", "Ljava/lang/Class;"));
@@ -185,6 +204,9 @@ public class sun_misc_Unsafe {
         }));
         vm.hook(HookGenerator.generateUnknownHandlingVoidHook(vm, "sun/misc/Unsafe", "putInt", "(Ljava/lang/Object;JI)V", true, Cause.ALL, Effect.NONE, (ctx, inst, args) -> {
             doSetInt(ctx, inst, args, false);
+        }));
+        vm.hook(HookGenerator.generateUnknownHandlingVoidHook(vm, "sun/misc/Unsafe", "putBoolean", "(Ljava/lang/Object;JZ)V", true, Cause.ALL, Effect.NONE, (ctx, inst, args) -> {
+            doSetBoolean(ctx, inst, args, false);
         }));
         vm.hook(HookGenerator.generateUnknownHandlingHook(vm, "sun/misc/Unsafe", "compareAndSwapObject", "(Ljava/lang/Object;JLjava/lang/Object;Ljava/lang/Object;)Z", true, Cause.ALL, Effect.NONE, (ctx, inst, args) -> {
             long objectFieldOffset = args[1].asLong();

@@ -64,6 +64,11 @@ public class ArrayLoadInstruction extends Instruction {
 
         int index = arrayIndex.asInt();
         JavaArray array = ((JavaArray) arrayInstance.get());
+
+        if (index >= array.length()) {
+            throw execution.getVM().newThrowable(VMSymbols.java_lang_ArrayIndexOutOfBoundsException, String.valueOf(index));
+        }
+
         stack.push(array.get(index));
     }
 }

@@ -39,7 +39,7 @@ public class java_lang_Throwable {
         vm.hook(HookGenerator.generateUnknownHandlingHook(vm, THIS, "fillInStackTrace", "(I)Ljava/lang/Throwable;", false, Cause.NONE, Effect.NONE, (ctx, inst, args) -> {
             List<StackTraceHolder> stacktrace = vm.getStacktrace();
 
-            while (true) {
+            while (!stacktrace.isEmpty()) {
                 StackTraceHolder holder = stacktrace.get(0);
                 if (holder.getMethod().name.equalsIgnoreCase("fillInStackTrace0") ||
                         holder.getMethod().name.equalsIgnoreCase("fillInStackTrace")) {

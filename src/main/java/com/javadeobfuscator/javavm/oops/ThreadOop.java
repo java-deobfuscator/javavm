@@ -69,6 +69,17 @@ public class ThreadOop extends Oop {
         this.thread = wrapper;
     }
 
+    public static void shutdown() {
+        for (ThreadOop oop : THREAD_TO_OOP_MAP.values()) {
+            if (oop.isMainThread) {
+                oop.thread = null;
+            } else {
+                oop.backingThread.stop();
+            }
+        }
+        THREAD_TO_OOP_MAP.clear();
+    }
+
     public void start() {
         if (this.isMainThread) {
             throw new ExecutionException("Cannot re-start main thread");
@@ -118,7 +129,9 @@ public class ThreadOop extends Oop {
             try {
                 vm.execute(thread.getJavaClass().getClassNode(), ASMHelper.findMethod(thread.getJavaClass().getClassNode(), "run", "()V"), thread, Collections.emptyList(), new ExecutionOptions());
             } catch (Throwable t) {
-                t.printStackTrace(System.out);
+                if (!(t instanceof ThreadDeath)) {
+                    t.printStackTrace(System.out);
+                }
             } finally {
                 /*
                     From Thread#join()

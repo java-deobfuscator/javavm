@@ -31,6 +31,10 @@ public class HookedMethod {
 
     private Hook _handler;
 
+    public HookedMethod(String owner, String name, String desc) {
+        this(owner, name, desc, Cause.ALL, Effect.ALL);
+    }
+
     public HookedMethod(String owner, String name, String desc, Cause cause, Effect effect) {
         this._owner = owner;
         this._name = name;

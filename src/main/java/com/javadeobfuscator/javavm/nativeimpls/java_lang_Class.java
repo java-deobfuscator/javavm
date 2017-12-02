@@ -200,7 +200,7 @@ public class java_lang_Class {
         return ((JavaObject) classObj).getMetadata(VMSymbols.METADATA_KLASS);
     }
 
-    public boolean verifyFixClassname(StringBuilder in) {
+    public static boolean verifyFixClassname(StringBuilder in) {
         boolean found = false;
         for (int i = 0; i < in.length(); i++) {
             char c = in.charAt(i);
@@ -213,7 +213,7 @@ public class java_lang_Class {
         return found;
     }
 
-    public boolean verifyClassname(String in, boolean allowArrayClass) {
+    public static boolean verifyClassname(String in, boolean allowArrayClass) {
         // todo
         return true;
     }
@@ -276,7 +276,12 @@ public class java_lang_Class {
             return superClass == null ? vm.getNull() : superClass.getOop();
         }));
         vm.hook(HookGenerator.generateUnknownHandlingHook(vm, THIS, "getInterfaces0", "()[Ljava/lang/Class;", false, Cause.ALL, Effect.NONE, (ctx, inst, args) -> {
-            throw new ExecutionException("Unsupported");
+            JavaClass[] interfaces = asKlass(inst).getInterfaces();
+            JavaWrapper[] converted = new JavaWrapper[interfaces.length];
+            for (int i = 0; i < interfaces.length; i++) {
+                converted[i] = interfaces[i].getOop();
+            }
+            return JavaWrapper.createArray(JavaClass.forName(vm, "[Ljava/lang/Class;"), converted);
         }));
         vm.hook(HookGenerator.generateUnknownHandlingHook(vm, THIS, "getComponentType", "()Ljava/lang/Class;", false, Cause.ALL, Effect.NONE, (ctx, inst, args) -> {
             return asKlass(inst).getComponentType().getOop();

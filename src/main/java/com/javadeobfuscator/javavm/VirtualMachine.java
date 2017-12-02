@@ -1,5 +1,6 @@
 package com.javadeobfuscator.javavm;
 
+import com.javadeobfuscator.javavm.exceptions.AbortException;
 import com.javadeobfuscator.javavm.exceptions.ExecutionException;
 import com.javadeobfuscator.javavm.exceptions.StacktraceException;
 import com.javadeobfuscator.javavm.exceptions.WrappedException;
@@ -41,6 +42,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
+import java.util.function.Consumer;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
@@ -560,6 +562,9 @@ public class VirtualMachine {
         java_lang_Throwable.registerNatives(this);
         java_lang_reflect_Array.registerNatives(this);
         java_lang_StrictMath.registerNatives(this);
+        java_awt_Font.registerNatives(this);
+        sun_awt_windows_WToolkit.registerNatives(this);
+        sun_java2d_Disposer.registerNatives(this);
         java_util_zip_Inflater.registerNatives(this);
         java_util_zip_CRC32.registerNatives(this);
         java_io_FileInputStream.registerNatives(this);
@@ -970,6 +975,9 @@ public class VirtualMachine {
                 try {
                     internalExecute(clazz.getClassNode(), clinit, null, new JavaWrapper[0], currentInsn.get(Thread.currentThread()));
                 } catch (WrappedException ex) {
+                    if (DEBUG_PRINT_EXCEPTIONS) {
+                        printException(ex);
+                    }
                     JavaWrapper err = ex.getWrapped();
                     if (!getSystemDictionary().getJavaLangError().isAssignableFrom(err.getJavaClass())) {
                         err = newExceptionInInitializerError(err);
@@ -1092,6 +1100,10 @@ public class VirtualMachine {
         return this;
     }
 
+    public MethodExecution execute(ClassNode classNode, MethodNode methodNode) {
+        return execute(classNode, methodNode, new ExecutionOptions());
+    }
+
     public MethodExecution execute(ClassNode classNode, MethodNode methodNode, ExecutionOptions options) {
         JavaWrapper instance = null;
         List<JavaWrapper> args = new ArrayList<>();
@@ -1120,6 +1132,15 @@ public class VirtualMachine {
     }
 
     public MethodExecution execute(ClassNode classNode, MethodNode methodNode, JavaWrapper instance, List<JavaWrapper> params, ExecutionOptions options) {
+        MethodExecution execution = new MethodExecution(this, classNode, methodNode, options);
+
+        HookInfo info = new HookInfo(classNode, methodNode, instance, params);
+        beforeCallHooks.forEach(c -> c.accept(info));
+        if (info.getReturnValue() != null) {
+            execution.setReturnValue(info.getReturnValue());
+            return execution;
+        }
+
         Stack stack = new Stack();
         Locals locals = new Locals();
         if (!Modifier.isStatic(methodNode.access)) {
@@ -1151,7 +1172,7 @@ public class VirtualMachine {
             }
         }
 
-        MethodExecution execution = new MethodExecution(this, classNode, methodNode, options);
+        JavaWrapper returnValue;
 
         HookedMethod hookedMethod = getHook(classNode.name, methodNode.name, methodNode.desc);
         if (hookedMethod != null) {
@@ -1160,24 +1181,41 @@ public class VirtualMachine {
                 if (TRACE) {
                     System.out.println(StringUtils.repeat("\t", depth.get()) + "Executing hook " + StringEscapeUtils.escapeJava(classNode.name) + "." + StringEscapeUtils.escapeJava(methodNode.name + "." + methodNode.desc));
                 }
-                execution.setReturnValue(hookedMethod.execute(execution, instance, params.toArray(new JavaWrapper[params.size()]), null));
+                returnValue = hookedMethod.execute(execution, instance, params.toArray(new JavaWrapper[params.size()]), null);
             } finally {
                 depth.set(depth.get() - 1);
             }
         } else {
             try {
-                execution.setReturnValue(execute(execution, stack, locals, instance, methodNode.instructions.getFirst(), false));
+                returnValue = execute(execution, stack, locals, instance, methodNode.instructions.getFirst(), false);
             } catch (WrappedException e) {
                 JavaWrapper wrapper = e.getWrapped();
                 StacktraceException ste = wrapper.get().getMetadata("throwable");
                 ste.setBackingMessage(convertJavaObjectToString(((JavaObject) wrapper.get()).getField("detailMessage", "Ljava/lang/String;")));
                 throw ste;
+            } catch (AbortException e) {
+                returnValue = null;
             }
         }
+        info.setReturnValue(returnValue);
+        afterCallHooks.forEach(c -> c.accept(info));
+        execution.setReturnValue(info.getReturnValue());
         return execution;
     }
 
+    public List<Consumer<HookInfo>> beforeCallHooks = new ArrayList<>();
+    public List<Consumer<HookInfo>> afterCallHooks = new ArrayList<>();
+    public List<Consumer<ExecutionOptions.BreakpointInfo>> breakpoints = new ArrayList<>();
+
     public JavaWrapper internalExecute(ClassNode classNode, MethodNode methodNode, JavaWrapper instance, JavaWrapper[] params, AbstractInsnNode prev) {
+        MethodExecution execution = new MethodExecution(this, classNode, methodNode, null);
+
+        HookInfo info = new HookInfo(classNode, methodNode, instance, params == null ? Collections.emptyList() : Arrays.asList(params));
+        beforeCallHooks.forEach(c -> c.accept(info));
+        if (info.getReturnValue() != null) {
+            return info.getReturnValue();
+        }
+
         Stack stack = new Stack();
         Locals locals = new Locals();
         if (!Modifier.isStatic(methodNode.access)) {
@@ -1213,22 +1251,26 @@ public class VirtualMachine {
             _stacktrace.get(Thread.currentThread()).peekFirst().setInstruction(currentInsn.get(Thread.currentThread()));
         }
 
-        MethodExecution execution = new MethodExecution(this, classNode, methodNode, null);
 
         HookedMethod hookedMethod = getHook(classNode.name, methodNode.name, methodNode.desc);
+        JavaWrapper result;
         if (hookedMethod != null) {
             depth.set(depth.get() + 1);
             try {
                 if (TRACE) {
                     System.out.println(StringUtils.repeat("\t", depth.get()) + "Executing hook " + StringEscapeUtils.escapeJava(classNode.name) + "." + StringEscapeUtils.escapeJava(methodNode.name + "." + methodNode.desc));
                 }
-                return hookedMethod.execute(execution, instance, params, prev);
+                result = hookedMethod.execute(execution, instance, params, prev);
             } finally {
                 depth.set(depth.get() - 1);
             }
         } else {
-            return execute(execution, stack, locals, instance, methodNode.instructions.getFirst(), false);
+            result = execute(execution, stack, locals, instance, methodNode.instructions.getFirst(), false);
         }
+        HookInfo info1 = new HookInfo(classNode, methodNode);
+        info1.setReturnValue(result);
+        afterCallHooks.forEach(c -> c.accept(info1));
+        return result;
     }
 
     /*
@@ -1605,6 +1647,9 @@ public class VirtualMachine {
                                         JavaClass ownerClass = JavaClass.forName(this, cast.owner);
 
                                         Pair<JavaClass, JavaField> targetField = ownerClass.findFieldNode(cast.name, cast.desc, true);
+                                        if (targetField == null) {
+                                            throw new ExecutionException("null target field for " + cast.owner + " " + cast.name + " " + cast.desc);
+                                        }
                                         initialize(targetField.getLeft());
 
                                         HookedFieldGetter hook = getHookedFieldGetter(targetField.getLeft().getClassNode().name, cast.name, cast.desc);
@@ -1752,8 +1797,11 @@ public class VirtualMachine {
                                 }
                             }
 
+                            ExecutionOptions.BreakpointInfo bpinfo = new ExecutionOptions.BreakpointInfo(now, stack, locals);
+                            breakpoints.forEach(k -> k.accept(bpinfo));
+
                             if (execution.getOptions() != null && execution.getOptions().shouldRecord(now)) {
-                                execution.getOptions().notify(now, new ExecutionOptions.BreakpointInfo(stack, locals));
+                                execution.getOptions().notify(now, bpinfo);
 //                                if (snapshots[method.instructions.indexOf(now)] == null) {
 //                                    InstructionSnapshot current = new InstructionSnapshot();
 //                                    current.merge(stack.copy(), locals.copy());
@@ -1799,7 +1847,7 @@ public class VirtualMachine {
                     if (!isBranch)
                         popStacktrace();
                 }
-            } catch (WrappedException | StacktraceException e) {
+            } catch (AbortException | WrappedException | StacktraceException e) {
                 throw e;
             } catch (Throwable e) {
                 try {
@@ -1877,5 +1925,14 @@ public class VirtualMachine {
     public void registerClass(ClassReader classReader, ClassNode classNode) {
         _constantPools.put(classNode, new ConstantPool(this, classReader));
         _classpath.put(classNode.name, classNode);
+    }
+
+    public void shutdown() {
+        ThreadOop.shutdown();
+    }
+
+    public void printException(WrappedException e) {
+        JavaWrapper systemOut = systemDictionary.getJavaLangSystem().getStaticField("out", "Ljava/io/PrintStream;");
+        internalExecute(getSystemDictionary().getJavaLangThrowable().getClassNode(), ASMHelper.findMethod(getSystemDictionary().getJavaLangThrowable().getClassNode(), "printStackTrace", "(Ljava/io/PrintStream;)V"), e.getWrapped(), new JavaWrapper[]{systemOut}, null);
     }
 }

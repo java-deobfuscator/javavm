@@ -194,8 +194,10 @@ public class java_lang_invoke_MethodHandleNatives {
                             vm.getLinkResolver().resolveStaticCall(result, new KlassHandle(defc), name, type, caller, caller.notNull(), false);
                         } else if (refKind == REF_invokeVirtual) {
                             vm.getLinkResolver().resolve_virtual_call(result, null, new KlassHandle(defc), new KlassHandle(defc), name, type, caller, caller.notNull(), false);
+                        } else if (refKind == REF_invokeSpecial) {
+                            vm.getLinkResolver().resolve_special_call(result, null, new KlassHandle(defc), name, type, caller, caller.notNull());
                         } else {
-                            throw new ExecutionException("Unexpected");
+                            throw new ExecutionException("Unexpected refKind " + refKind);
                         }
                         JavaWrapper mname2 = initMethodMemberName(vm, args[0], result);
                         return mname2;

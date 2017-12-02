@@ -14,19 +14,17 @@
  * limitations under the License.
  */
 
-package com.javadeobfuscator.javavm.exceptions;
+package com.javadeobfuscator.javavm.nativeimpls;
 
+import com.javadeobfuscator.javavm.Cause;
+import com.javadeobfuscator.javavm.Effect;
+import com.javadeobfuscator.javavm.VirtualMachine;
+import com.javadeobfuscator.javavm.hooks.HookGenerator;
 import com.javadeobfuscator.javavm.values.JavaWrapper;
 
-public class WrappedException extends RuntimeException {
-    private JavaWrapper wrapped;
-
-    public WrappedException(JavaWrapper inst) {
-        super(new RuntimeException());
-        this.wrapped = inst;
-    }
-
-    public JavaWrapper getWrapped() {
-        return this.wrapped;
+public class java_awt_Font {
+    public static void registerNatives(VirtualMachine vm) {
+        vm.hook(HookGenerator.generateUnknownHandlingVoidHook(vm, "java/awt/Font", "initIDs", "()V", true, Cause.NONE, Effect.NONE, (ctx, inst, args) -> {
+        }));
     }
 }

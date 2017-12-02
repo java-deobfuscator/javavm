@@ -81,11 +81,15 @@ public class java_lang_System {
             putProp(vm, args[0], "java.home", "C:\\java_home_dir");
             putProp(vm, args[0], "user.dir", "C:\\user_dir");
             putProp(vm, args[0], "sun.reflect.inflationThreshold", String.valueOf(Integer.MAX_VALUE));
+            putProp(vm, args[0], "os.name", "Windows 10");
             putProp(vm, args[0], "os.arch", "x86_64");
             putProp(vm, args[0], "os.version", "10.0");
             putProp(vm, args[0], "sun.boot.class.path", "C:\\java_home_dir\\lib\\jce.jar");
             putProp(vm, args[0], "java.io.tmpdir", "C:\\temp_dir\\");
             putProp(vm, args[0], "sun.jnu.encoding", "Cp1252");
+            putProp(vm, args[0], "java.awt.headless", "true");
+            putProp(vm, args[0], "java.class.version", "50.0");
+            putProp(vm, args[0], "awt.toolkit", "sun.awt.windows.WToolkit");
             return args[0];
         }));
         vm.hook(HookGenerator.generateUnknownHandlingHook(vm, THIS, "mapLibraryName", "(Ljava/lang/String;)Ljava/lang/String;", true, Cause.NONE, Effect.NONE, (ctx, inst, args) -> {

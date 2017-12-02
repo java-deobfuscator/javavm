@@ -14,19 +14,16 @@
  * limitations under the License.
  */
 
-package com.javadeobfuscator.javavm.exceptions;
+package com.javadeobfuscator.javavm.nativeimpls;
 
-import com.javadeobfuscator.javavm.values.JavaWrapper;
+import com.javadeobfuscator.javavm.Cause;
+import com.javadeobfuscator.javavm.Effect;
+import com.javadeobfuscator.javavm.VirtualMachine;
+import com.javadeobfuscator.javavm.hooks.HookGenerator;
 
-public class WrappedException extends RuntimeException {
-    private JavaWrapper wrapped;
-
-    public WrappedException(JavaWrapper inst) {
-        super(new RuntimeException());
-        this.wrapped = inst;
-    }
-
-    public JavaWrapper getWrapped() {
-        return this.wrapped;
+public class sun_java2d_Disposer {
+    public static void registerNatives(VirtualMachine vm) {
+        vm.hook(HookGenerator.generateUnknownHandlingVoidHook(vm, "sun/java2d/Disposer", "initIDs", "()V", true, Cause.NONE, Effect.NONE, (ctx, inst, args) -> {
+        }));
     }
 }

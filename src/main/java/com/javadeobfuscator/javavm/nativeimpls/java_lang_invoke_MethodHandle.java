@@ -23,6 +23,7 @@ import com.javadeobfuscator.javavm.exceptions.ExecutionException;
 import com.javadeobfuscator.javavm.hooks.HookGenerator;
 import com.javadeobfuscator.javavm.hooks.HookedMethod;
 import com.javadeobfuscator.javavm.mirrors.JavaMethod;
+import com.javadeobfuscator.javavm.values.JavaObject;
 import com.javadeobfuscator.javavm.values.JavaWrapper;
 import org.objectweb.asm.Type;
 import org.objectweb.asm.tree.MethodNode;
@@ -36,6 +37,14 @@ public class java_lang_invoke_MethodHandle {
     public java_lang_invoke_MethodHandle(VirtualMachine vm) {
         _vm = vm;
         registerNatives();
+    }
+
+    public static JavaWrapper getLambdaForm(JavaWrapper methodHandle) {
+        return methodHandle.asObject().getField("form", "Ljava/lang/invoke/LambdaForm;");
+    }
+
+    public static JavaWrapper getVMEntry(JavaWrapper lambdaForm) {
+        return lambdaForm.asObject().getField("vmentry", "Ljava/lang/invoke/MemberName;");
     }
 
     private void registerNatives() {

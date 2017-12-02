@@ -16,17 +16,6 @@
 
 package com.javadeobfuscator.javavm.exceptions;
 
-import com.javadeobfuscator.javavm.values.JavaWrapper;
-
-public class WrappedException extends RuntimeException {
-    private JavaWrapper wrapped;
-
-    public WrappedException(JavaWrapper inst) {
-        super(new RuntimeException());
-        this.wrapped = inst;
-    }
-
-    public JavaWrapper getWrapped() {
-        return this.wrapped;
-    }
+public class AbortException extends RuntimeException {
+    public static final AbortException INSTANCE = new AbortException();
 }

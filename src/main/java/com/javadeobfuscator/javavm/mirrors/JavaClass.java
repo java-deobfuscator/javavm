@@ -110,17 +110,17 @@ public class JavaClass {
         }
 
         for (FieldNode fieldNode : classNode.fields) {
-            fieldCache.put(fieldNode.name + ";" + fieldNode.desc, fieldNode);
+            fieldCache.put(fieldNode.name + "." + fieldNode.desc, fieldNode);
         }
 
         for (MethodNode methodNode : classNode.methods) {
-            methodCache.put(methodNode.name + ";" + methodNode.desc, methodNode);
+            methodCache.put(methodNode.name + "." + methodNode.desc, methodNode);
         }
     }
 
 
     public Pair<JavaClass, JavaField> findFieldNode(String name, String desc, boolean recursive) {
-        FieldNode result = fieldCache.get(name + ";" + desc);
+        FieldNode result = fieldCache.get(name + "." + desc);
         if (result != null) {
             return Pair.of(this, new JavaField(this, result));
         } else {
@@ -140,7 +140,7 @@ public class JavaClass {
     }
 
     public MethodNode findMethodNode(String name, String desc, boolean recursive) {
-        MethodNode result = methodCache.get(name + ";" + desc);
+        MethodNode result = methodCache.get(name + "." + desc);
         if (result != null) {
             return result;
         } else {
@@ -195,11 +195,11 @@ public class JavaClass {
         nextSlot = -1;
     }
 
-    public static JavaClass forName(VirtualMachine vm, String name) {
+    public synchronized static JavaClass forName(VirtualMachine vm, String name) {
         return forName(vm, TypeHelper.parseType(vm, name));
     }
 
-    public static JavaClass forName(VirtualMachine vm, Type descriptor) {
+    public synchronized static JavaClass forName(VirtualMachine vm, Type descriptor) {
         if (descriptor.getSort() == Type.OBJECT || descriptor.getSort() == Type.ARRAY) {
             String strdesc = descriptor.getDescriptor();
             if (!strdesc.endsWith(";") && !strdesc.startsWith("[")) {
@@ -288,6 +288,10 @@ public class JavaClass {
 
     public final boolean isInterface() {
         return this.isInterface;
+    }
+
+    public final boolean isSuper() {
+        return (this.classNode.access & Opcodes.ACC_SUPER) != 0;
     }
 
     public final boolean isPrimitive() {
@@ -967,6 +971,16 @@ public class JavaClass {
         }
 
         return null;
+    }
+
+    public boolean isSubclassOf(JavaClass javaClass) {
+        return javaClass.isAssignableFrom(this);
+    }
+
+    public List<JavaMethod> getDefaultMethods() {
+        List<JavaMethod> defaults = new ArrayList<>();
+
+        return defaults;
     }
 
     public enum InitializationState {

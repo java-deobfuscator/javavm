@@ -1,8 +1,14 @@
 package com.javadeobfuscator.javavm;
 
+import com.javadeobfuscator.javavm.values.JavaWrapper;
 import org.objectweb.asm.tree.AbstractInsnNode;
+import org.objectweb.asm.tree.ClassNode;
+import org.objectweb.asm.tree.MethodNode;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 import java.util.function.Consumer;
 
 public class ExecutionOptions {
@@ -24,10 +30,12 @@ public class ExecutionOptions {
     }
 
     public static class BreakpointInfo {
+        private AbstractInsnNode now;
         private Stack stack;
         private Locals locals;
 
-        public BreakpointInfo(Stack stack, Locals locals) {
+        public BreakpointInfo(AbstractInsnNode now, Stack stack, Locals locals) {
+            this.now = now;
             this.stack = stack;
             this.locals = locals;
         }
@@ -38,6 +46,10 @@ public class ExecutionOptions {
 
         public Locals getLocals() {
             return locals;
+        }
+
+        public AbstractInsnNode getNow() {
+            return now;
         }
     }
 }
