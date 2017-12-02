@@ -3,12 +3,19 @@
     <modelVersion>4.0.0</modelVersion>
     <groupId>com.javadeobfuscator</groupId>
     <artifactId>javavm</artifactId>
-    <version>1.0.0</version>
+    <version>1.0.1</version>
 
     <properties>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <version.asm>6.0</version.asm>
     </properties>
+
+    <distributionManagement>
+        <repository>
+            <id>personal-repo</id>
+            <url>https://repo.samczsun.com/repository/java-deobfuscator</url>
+        </repository>
+    </distributionManagement>
 
     <build>
         <sourceDirectory>src/main/java</sourceDirectory>
