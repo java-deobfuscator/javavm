@@ -13,7 +13,6 @@ import com.javadeobfuscator.javavm.oops.*;
 import com.javadeobfuscator.javavm.utils.*;
 import com.javadeobfuscator.javavm.values.*;
 import com.javadeobfuscator.javavm.values.prim.*;
-import com.sun.javaws.exceptions.*;
 import org.apache.commons.lang3.*;
 import org.apache.commons.lang3.tuple.*;
 import org.objectweb.asm.*;
