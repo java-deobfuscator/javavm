@@ -16,24 +16,24 @@
 
 package com.javadeobfuscator.javavm.nativeimpls;
 
-import com.javadeobfuscator.javavm.Cause;
-import com.javadeobfuscator.javavm.Effect;
-import com.javadeobfuscator.javavm.StackTraceHolder;
-import com.javadeobfuscator.javavm.VirtualMachine;
-import com.javadeobfuscator.javavm.hooks.HookGenerator;
-import com.javadeobfuscator.javavm.mirrors.JavaClass;
-import com.javadeobfuscator.javavm.values.JavaWrapper;
-import org.objectweb.asm.tree.AbstractInsnNode;
-import org.objectweb.asm.tree.LabelNode;
-import org.objectweb.asm.tree.LineNumberNode;
-import org.objectweb.asm.tree.MethodNode;
+import com.javadeobfuscator.javavm.*;
+import com.javadeobfuscator.javavm.hooks.*;
+import com.javadeobfuscator.javavm.mirrors.*;
+import com.javadeobfuscator.javavm.values.*;
+import org.objectweb.asm.tree.*;
 
-import java.lang.reflect.Modifier;
-import java.util.ArrayList;
-import java.util.List;
+import java.lang.reflect.*;
+import java.util.*;
 
+/*
+ * Throwables are interesting. Calling fillInStackTrace() will cause the VM to generate the backtrace,
+ * but not actually modify the Throwable's accessible fields (the backtrace field will be modified though)
+ *
+ * Only when getStackTrace() or printStackTrace() is called, is getStackTraceElement() called to lazily fetch the stacktrace
+ */
 public class java_lang_Throwable {
     private static final String THIS = "java/lang/Throwable";
+    public static final String METADATA_BACKTRACE = "backtrace";
 
     public static void registerNatives(VirtualMachine vm) {
         vm.hook(HookGenerator.generateUnknownHandlingHook(vm, THIS, "fillInStackTrace", "(I)Ljava/lang/Throwable;", false, Cause.NONE, Effect.NONE, (ctx, inst, args) -> {
@@ -52,20 +52,39 @@ public class java_lang_Throwable {
                 }
                 break;
             }
-            inst.get().setMetadata("backtrace", stacktrace);
+
+            inst.get().setMetadata(METADATA_BACKTRACE, stacktrace);
 
             return inst;
         }));
         vm.hook(HookGenerator.generateUnknownHandlingHook(vm, THIS, "getStackTraceDepth", "()I", false, Cause.NONE, Effect.NONE, (ctx, inst, args) -> {
-            return JavaWrapper.createInteger(vm, ((List) inst.get().getMetadata("backtrace")).size());
+            return JavaWrapper.createInteger(vm, ((List) inst.get().getMetadata(METADATA_BACKTRACE)).size());
         }));
         vm.hook(HookGenerator.generateUnknownHandlingHook(vm, THIS, "getStackTraceElement", "(I)Ljava/lang/StackTraceElement;", false, Cause.NONE, Effect.NONE, (ctx, inst, args) -> {
             JavaClass stackTraceElementClazz = JavaClass.forName(vm, "java/lang/StackTraceElement");
 
-            List<StackTraceHolder> queue = inst.get().getMetadata("backtrace");
+            List<StackTraceHolder> holders = inst.get().getMetadata(METADATA_BACKTRACE);
+            List<StackTraceElement> elements = convert(holders);
 
-            StackTraceHolder elem = queue.get(args[0].asInt());
+            StackTraceElement elem = elements.get(args[0].asInt());
 
+            return vm.newInstance(stackTraceElementClazz, "(Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;I)V",
+                    vm.getString(elem.getClassName()),
+                    vm.getString(elem.getMethodName()),
+                    vm.getString(elem.getFileName()),
+                    vm.newInt(elem.getLineNumber())
+            );
+        }));
+    }
+
+    public static List<StackTraceElement> convert(List<StackTraceHolder> stackTraceHolder) {
+        if (stackTraceHolder == null) {
+            return new ArrayList<>();
+        }
+
+        List<StackTraceElement> result = new ArrayList<>();
+
+        for (StackTraceHolder elem : stackTraceHolder) {
             int lineNumber = -1;
             if (Modifier.isNative(elem.getMethod().access)) {
                 lineNumber = -2;
@@ -95,13 +114,14 @@ public class java_lang_Throwable {
                     }
                 }
             }
+            result.add(new StackTraceElement(
+                    elem.getClassNode().name.replace('/', '.'),
+                    elem.getMethod().name,
+                    elem.getClassNode().sourceFile,
+                    lineNumber
+            ));
+        }
 
-            return vm.newInstance(stackTraceElementClazz, "(Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;I)V",
-                    vm.getString(elem.getClassNode().name.replace('/', '.')),
-                    vm.getString(elem.getMethod().name),
-                    vm.getString(elem.getClassNode().sourceFile),
-                    JavaWrapper.createInteger(vm, lineNumber)
-            );
-        }));
+        return result;
     }
 }

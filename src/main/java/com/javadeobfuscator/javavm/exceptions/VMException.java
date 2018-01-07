@@ -18,11 +18,14 @@ package com.javadeobfuscator.javavm.exceptions;
 
 import com.javadeobfuscator.javavm.values.JavaWrapper;
 
-public class WrappedException extends RuntimeException {
+/**
+ * This exception can be thrown when executing a method within the VM
+ */
+public class VMException extends RuntimeException {
     private JavaWrapper wrapped;
 
-    public WrappedException(JavaWrapper inst) {
-        super(new RuntimeException());
+    public VMException(JavaWrapper inst) {
+        super(new Throwable());
         this.wrapped = inst;
     }
 

@@ -1,50 +1,31 @@
 package com.javadeobfuscator.javavm;
 
-import com.javadeobfuscator.javavm.exceptions.AbortException;
+import com.javadeobfuscator.javavm.exceptions.*;
 import com.javadeobfuscator.javavm.exceptions.ExecutionException;
-import com.javadeobfuscator.javavm.exceptions.StacktraceException;
-import com.javadeobfuscator.javavm.exceptions.WrappedException;
-import com.javadeobfuscator.javavm.ext.Filesystem;
-import com.javadeobfuscator.javavm.ext.Memory;
-import com.javadeobfuscator.javavm.ext.net.Network;
-import com.javadeobfuscator.javavm.hooks.HookGenerator;
-import com.javadeobfuscator.javavm.hooks.HookedFieldGetter;
-import com.javadeobfuscator.javavm.hooks.HookedFieldSetter;
-import com.javadeobfuscator.javavm.hooks.HookedMethod;
+import com.javadeobfuscator.javavm.ext.*;
+import com.javadeobfuscator.javavm.ext.net.*;
+import com.javadeobfuscator.javavm.hooks.*;
 import com.javadeobfuscator.javavm.instructions.*;
-import com.javadeobfuscator.javavm.internals.LinkResolver;
-import com.javadeobfuscator.javavm.internals.SystemDictionary;
-import com.javadeobfuscator.javavm.internals.VMSymbols;
-import com.javadeobfuscator.javavm.mirrors.JavaClass;
-import com.javadeobfuscator.javavm.mirrors.JavaField;
+import com.javadeobfuscator.javavm.internals.*;
+import com.javadeobfuscator.javavm.mirrors.*;
 import com.javadeobfuscator.javavm.nativeimpls.*;
-import com.javadeobfuscator.javavm.oops.Oop;
-import com.javadeobfuscator.javavm.oops.ThreadOop;
+import com.javadeobfuscator.javavm.oops.*;
 import com.javadeobfuscator.javavm.utils.*;
 import com.javadeobfuscator.javavm.values.*;
-import com.javadeobfuscator.javavm.values.prim.JDouble;
-import com.javadeobfuscator.javavm.values.prim.JFloat;
-import com.javadeobfuscator.javavm.values.prim.JInteger;
-import com.javadeobfuscator.javavm.values.prim.JLong;
-import org.apache.commons.lang3.StringEscapeUtils;
-import org.apache.commons.lang3.StringUtils;
-import org.apache.commons.lang3.tuple.Pair;
-import org.objectweb.asm.ClassReader;
-import org.objectweb.asm.Opcodes;
+import com.javadeobfuscator.javavm.values.prim.*;
+import com.sun.javaws.exceptions.*;
+import org.apache.commons.lang3.*;
+import org.apache.commons.lang3.tuple.*;
+import org.objectweb.asm.*;
 import org.objectweb.asm.Type;
 import org.objectweb.asm.tree.*;
 
-import java.lang.reflect.Field;
-import java.lang.reflect.Modifier;
+import java.lang.reflect.*;
 import java.util.*;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.locks.Lock;
-import java.util.concurrent.locks.ReadWriteLock;
-import java.util.concurrent.locks.ReentrantReadWriteLock;
-import java.util.function.Consumer;
-import java.util.function.Predicate;
-import java.util.stream.Collectors;
+import java.util.concurrent.*;
+import java.util.concurrent.locks.*;
+import java.util.function.*;
+import java.util.stream.*;
 
 import static org.objectweb.asm.Opcodes.*;
 
@@ -480,66 +461,6 @@ public class VirtualMachine {
         return new ArrayList<>(_stacktrace.computeIfAbsent(Thread.currentThread(), key -> new ArrayDeque<>()));
     }
 
-    public StacktraceException toThrowable() {
-        StacktraceException throwable = new StacktraceException("Thread: " + Thread.currentThread().getId() + " " + Thread.currentThread().getName());
-
-        List<StackTraceHolder> stacktrace = getStacktrace();
-
-        while (stacktrace.size() > 0) {
-            StackTraceHolder holder = stacktrace.get(0);
-            if (holder.getMethod().name.equalsIgnoreCase("fillInStackTrace0") ||
-                    holder.getMethod().name.equalsIgnoreCase("fillInStackTrace")) {
-                stacktrace.remove(0);
-                continue;
-            }
-            if (holder.getMethod().name.equals("<init>") && getSystemDictionary().getJavaLangThrowable().isAssignableFrom(JavaClass.forName(this, holder.getClassNode().name))) {
-                stacktrace.remove(0);
-                continue;
-            }
-            break;
-        }
-
-        StackTraceElement[] elem = new StackTraceElement[stacktrace.size()];
-        for (int t = 0; t < stacktrace.size(); t++) {
-            StackTraceHolder holder = stacktrace.get(t);
-
-            int lineNumber = -1;
-            if (Modifier.isNative(holder.getMethod().access)) {
-                lineNumber = -2;
-            } else {
-                if (holder.getInstruction() != null) {
-                    AbstractInsnNode target = holder.getInstruction();
-                    List<LineNumberNode> lines = new ArrayList<>();
-                    for (MethodNode m : holder.getClassNode().methods) {
-                        if (m.instructions != null && m.instructions.getFirst() != null) {
-                            for (AbstractInsnNode i = m.instructions.getFirst(); i.getNext() != null; i = i.getNext()) {
-                                if (i instanceof LineNumberNode) {
-                                    lines.add((LineNumberNode) i);
-                                }
-                            }
-                        }
-                    }
-                    outer:
-                    for (AbstractInsnNode i = target.getPrevious(); i != null; i = i.getPrevious()) {
-                        if (i instanceof LabelNode) {
-                            for (LineNumberNode ln : lines) {
-                                if (ln.start.getLabel().equals(((LabelNode) i).getLabel())) {
-                                    lineNumber = ln.line;
-                                    break outer;
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-
-            elem[t] = new StackTraceElement(stacktrace.get(t).getClassNode().name.replace('/', '.'), stacktrace.get(t).getMethod().name, stacktrace.get(t).getClassNode().sourceFile, lineNumber);
-        }
-
-        throwable.setStackTrace(elem);
-        return throwable;
-    }
-
     public JavaWrapper intern(JavaWrapper in) {
         return internedStrings.computeIfAbsent(convertJavaObjectToString(in), this::getString);
     }
@@ -960,7 +881,7 @@ public class VirtualMachine {
                 for (JavaClass javaClass : needsInitialization) {
                     try {
                         initialize(javaClass);
-                    } catch (WrappedException ex) {
+                    } catch (VMException ex) {
                         clazz.getInitializationLock().lock();
                         clazz.setInitializationState(JavaClass.InitializationState.ERROR, null);
                         clazz.getInitializationCondition().signalAll();
@@ -974,7 +895,7 @@ public class VirtualMachine {
             if (clinit != null) {
                 try {
                     internalExecute(clazz.getClassNode(), clinit, null, new JavaWrapper[0], currentInsn.get(Thread.currentThread()));
-                } catch (WrappedException ex) {
+                } catch (VMException ex) {
                     if (DEBUG_PRINT_EXCEPTIONS) {
                         printException(ex);
                     }
@@ -986,7 +907,7 @@ public class VirtualMachine {
                     clazz.setInitializationState(JavaClass.InitializationState.ERROR, null);
                     clazz.getInitializationCondition().signalAll();
                     clazz.getInitializationLock().unlock();
-                    throw new WrappedException(err);
+                    throw new VMException(err);
                 }
             }
             clazz.getInitializationLock().lock();
@@ -1100,11 +1021,11 @@ public class VirtualMachine {
         return this;
     }
 
-    public MethodExecution execute(ClassNode classNode, MethodNode methodNode) {
+    public MethodExecution execute(ClassNode classNode, MethodNode methodNode) throws VMException {
         return execute(classNode, methodNode, new ExecutionOptions());
     }
 
-    public MethodExecution execute(ClassNode classNode, MethodNode methodNode, ExecutionOptions options) {
+    public MethodExecution execute(ClassNode classNode, MethodNode methodNode, ExecutionOptions options) throws VMException {
         JavaWrapper instance = null;
         List<JavaWrapper> args = new ArrayList<>();
 
@@ -1123,15 +1044,15 @@ public class VirtualMachine {
         return execute(classNode, methodNode, instance, args, options);
     }
 
-    public MethodExecution execute(ClassNode classNode, MethodNode methodNode, JavaValue instance, List<JavaValue> params) {
+    public MethodExecution execute(ClassNode classNode, MethodNode methodNode, JavaValue instance, List<JavaValue> params) throws VMException {
         return execute(classNode, methodNode, JavaWrapper.wrap(instance), params.stream().map(JavaWrapper::wrap).collect(Collectors.toList()), new ExecutionOptions());
     }
 
-    public MethodExecution execute(ClassNode classNode, MethodNode methodNode, JavaWrapper instance, List<JavaWrapper> params) {
+    public MethodExecution execute(ClassNode classNode, MethodNode methodNode, JavaWrapper instance, List<JavaWrapper> params) throws VMException {
         return execute(classNode, methodNode, instance, params, new ExecutionOptions());
     }
 
-    public MethodExecution execute(ClassNode classNode, MethodNode methodNode, JavaWrapper instance, List<JavaWrapper> params, ExecutionOptions options) {
+    public MethodExecution execute(ClassNode classNode, MethodNode methodNode, JavaWrapper instance, List<JavaWrapper> params, ExecutionOptions options) throws VMException {
         MethodExecution execution = new MethodExecution(this, classNode, methodNode, options);
 
         HookInfo info = new HookInfo(classNode, methodNode, instance, params);
@@ -1188,11 +1109,12 @@ public class VirtualMachine {
         } else {
             try {
                 returnValue = execute(execution, stack, locals, instance, methodNode.instructions.getFirst(), false);
-            } catch (WrappedException e) {
-                JavaWrapper wrapper = e.getWrapped();
-                StacktraceException ste = wrapper.get().getMetadata("throwable");
-                ste.setBackingMessage(convertJavaObjectToString(((JavaObject) wrapper.get()).getField("detailMessage", "Ljava/lang/String;")));
-                throw ste;
+            } catch (VMException e) {
+//                JavaWrapper wrapper = e.getWrapped();
+//                StacktraceException ste = wrapper.get().getMetadata("throwable");
+//                ste.setBackingMessage(convertJavaObjectToString(((JavaObject) wrapper.get()).getField("detailMessage", "Ljava/lang/String;")));
+                // todo what
+                throw e;
             } catch (AbortException e) {
                 returnValue = null;
             }
@@ -1205,7 +1127,13 @@ public class VirtualMachine {
 
     public List<Consumer<HookInfo>> beforeCallHooks = new ArrayList<>();
     public List<Consumer<HookInfo>> afterCallHooks = new ArrayList<>();
-    public List<Consumer<ExecutionOptions.BreakpointInfo>> breakpoints = new ArrayList<>();
+    public Map<Object, Consumer<ExecutionOptions.BreakpointInfo>> breakpoints = new HashMap<>();
+
+    public Object addBreakpoint(Consumer<ExecutionOptions.BreakpointInfo> bp) {
+        Object token = new Object();
+        breakpoints.put(token, bp);
+        return token;
+    }
 
     public JavaWrapper internalExecute(ClassNode classNode, MethodNode methodNode, JavaWrapper instance, JavaWrapper[] params, AbstractInsnNode prev) {
         MethodExecution execution = new MethodExecution(this, classNode, methodNode, null);
@@ -1281,6 +1209,8 @@ public class VirtualMachine {
             throw new ExecutionException("UnsatisfiedLinkError: " + execution.getClassNode().name + " " + execution.getMethodNode().name + execution.getMethodNode().desc);
         }
         depth.set(depth.get() + 1);
+        if (!isBranch)
+            pushStacktrace(execution.getClassNode(), execution.getMethodNode(), now);
         try {
             Lock needToUnlock = null;
             try {
@@ -1312,204 +1242,212 @@ public class VirtualMachine {
                     System.out.println(Thread.currentThread().getId() + StringUtils.repeat("\t", depth.get()) + "Executing " + StringEscapeUtils.escapeJava(classNode.name) + "." + StringEscapeUtils.escapeJava(method.name + "." + method.desc));
                 }
                 Thread currentThread = Thread.currentThread();
-                try {
-                    if (!isBranch)
-                        pushStacktrace(execution.getClassNode(), execution.getMethodNode(), now);
-                    forever:
-                    while (true) {
-                        try {
-                            if (now == null) {
-                                throw new ExecutionException("Falling off end of code in " + StringEscapeUtils.escapeJava(classNode.name) + " " + StringEscapeUtils.escapeJava(method.name) + StringEscapeUtils.escapeJava(method.desc));
-                            }
-                            currentInsn.put(currentThread, now);
-                            if (
-                                    (DEBUG
-                                            && (DEBUG_CLASSES.isEmpty() || DEBUG_CLASSES.contains(classNode.name))
-                                            && (DEBUG_METHODS_WITH_DESC.isEmpty() || DEBUG_METHODS_WITH_DESC.contains(method.name + method.desc)))
-                                            || false
-                                    ) {
-                                System.out.println("\tStack: " + stack);
-                                System.out.println("\tLocals: " + locals);
-                                System.out.println();
-                                System.out.println(method.instructions.indexOf(now) + " " + Utils.prettyprint(now));
-                            }
-                            if (now.getOpcode() != -1 && INSTRUCTION_HANDLERS[now.getOpcode()] != null) {
-                                branchTo.clear();
-                                INSTRUCTION_HANDLERS[now.getOpcode()].execute(execution, now, stack, locals, branchTo);
-                                if (branchTo.size() == 1) {
-                                    now = branchTo.get(0);
-                                } else if (branchTo.size() > 1) {
-                                    JavaUnknown unknown = new JavaUnknown(this, JavaClass.forName(this, TypeHelper.getTypeByInternalName(this, "java/lang/Object")), "Multiple possibilities on " + Utils.prettyprint(now));
-                                    for (AbstractInsnNode node : branchTo) {
-                                        unknown.merge(execute(execution, stack.copy(), locals.copy(), curInstance, node, true).toString());
-                                    }
-                                    return JavaWrapper.wrap(unknown);
+                forever:
+                while (true) {
+                    try {
+                        if (now == null) {
+                            throw new ExecutionException("Falling off end of code in " + StringEscapeUtils.escapeJava(classNode.name) + " " + StringEscapeUtils.escapeJava(method.name) + StringEscapeUtils.escapeJava(method.desc));
+                        }
+                        currentInsn.put(currentThread, now);
+                        if (
+                                (DEBUG
+                                        && (DEBUG_CLASSES.isEmpty() || DEBUG_CLASSES.contains(classNode.name))
+                                        && (DEBUG_METHODS_WITH_DESC.isEmpty() || DEBUG_METHODS_WITH_DESC.contains(method.name + method.desc)))
+                                        || false
+                                ) {
+                            System.out.println("\tStack: " + stack);
+                            System.out.println("\tLocals: " + locals);
+                            System.out.println();
+                            System.out.println(method.instructions.indexOf(now) + " " + Utils.prettyprint(now));
+                        }
+                        if (now.getOpcode() != -1 && INSTRUCTION_HANDLERS[now.getOpcode()] != null) {
+                            branchTo.clear();
+                            INSTRUCTION_HANDLERS[now.getOpcode()].execute(execution, now, stack, locals, branchTo);
+                            if (branchTo.size() == 1) {
+                                now = branchTo.get(0);
+                            } else if (branchTo.size() > 1) {
+                                JavaUnknown unknown = new JavaUnknown(this, JavaClass.forName(this, TypeHelper.getTypeByInternalName(this, "java/lang/Object")), "Multiple possibilities on " + Utils.prettyprint(now));
+                                for (AbstractInsnNode node : branchTo) {
+                                    unknown.merge(execute(execution, stack.copy(), locals.copy(), curInstance, node, true).toString());
                                 }
-                            } else {
-                                switch (now.getOpcode()) {
-                                    case POP:
+                                return JavaWrapper.wrap(unknown);
+                            }
+                        } else {
+                            switch (now.getOpcode()) {
+                                case POP:
+                                    stack.pop();
+                                    break;
+                                case POP2: {
+                                    JavaWrapper wrapper = stack.pop();
+                                    if (!wrapper.is(JavaValueType.WIDE)) {
                                         stack.pop();
-                                        break;
-                                    case POP2: {
-                                        JavaWrapper wrapper = stack.pop();
-                                        if (!wrapper.is(JavaValueType.WIDE)) {
-                                            stack.pop();
-                                        }
-                                        break;
                                     }
-                                    case DUP:
-                                        stack.push(stack.peek());
-                                        break;
-                                    case DUP_X1: {
-                                        JavaWrapper obj = stack.peek();
-                                        if (obj.is(JavaValueType.WIDE)) {
-                                            throw new ExecutionException("Dup with wide value");
-                                        }
-                                        JavaWrapper a = stack.pop();
+                                    break;
+                                }
+                                case DUP:
+                                    stack.push(stack.peek());
+                                    break;
+                                case DUP_X1: {
+                                    JavaWrapper obj = stack.peek();
+                                    if (obj.is(JavaValueType.WIDE)) {
+                                        throw new ExecutionException("Dup with wide value");
+                                    }
+                                    JavaWrapper a = stack.pop();
+                                    JavaWrapper b = stack.pop();
+                                    stack.push(a);
+                                    stack.push(b);
+                                    stack.push(a);
+                                    break;
+                                }
+                                case DUP_X2: {
+                                    JavaWrapper obj = stack.peek();
+                                    if (obj.is(JavaValueType.WIDE)) {
+                                        throw new ExecutionException("Dup with wide value");
+                                    }
+                                    JavaWrapper a = stack.pop();
+                                    JavaWrapper b = stack.pop();
+                                    JavaWrapper c = stack.pop();
+                                    stack.push(a);
+                                    stack.push(c);
+                                    stack.push(b);
+                                    stack.push(a);
+                                    break;
+                                }
+                                case DUP2: {
+                                    JavaWrapper a = stack.pop();
+                                    if (a.is(JavaValueType.WIDE)) {
+                                        stack.push(a);
+                                        stack.push(a);
+                                    } else {
                                         JavaWrapper b = stack.pop();
+                                        stack.push(b);
                                         stack.push(a);
                                         stack.push(b);
                                         stack.push(a);
-                                        break;
                                     }
-                                    case DUP_X2: {
-                                        JavaWrapper obj = stack.peek();
-                                        if (obj.is(JavaValueType.WIDE)) {
-                                            throw new ExecutionException("Dup with wide value");
-                                        }
-                                        JavaWrapper a = stack.pop();
+                                    break;
+                                }
+                                case DUP2_X1: {
+                                    JavaWrapper obj = stack.pop();
+                                    if (obj.is(JavaValueType.WIDE)) {
+                                        JavaWrapper c = stack.pop();
+                                        stack.push(obj);
+                                        stack.push(c);
+                                        stack.push(obj);
+                                    } else {
                                         JavaWrapper b = stack.pop();
                                         JavaWrapper c = stack.pop();
-                                        stack.push(a);
+                                        stack.push(b);
+                                        stack.push(obj);
                                         stack.push(c);
                                         stack.push(b);
-                                        stack.push(a);
-                                        break;
+                                        stack.push(obj);
                                     }
-                                    case DUP2: {
-                                        JavaWrapper a = stack.pop();
-                                        if (a.is(JavaValueType.WIDE)) {
-                                            stack.push(a);
-                                            stack.push(a);
-                                        } else {
-                                            JavaWrapper b = stack.pop();
-                                            stack.push(b);
-                                            stack.push(a);
-                                            stack.push(b);
-                                            stack.push(a);
-                                        }
-                                        break;
-                                    }
-                                    case DUP2_X1: {
-                                        JavaWrapper obj = stack.pop();
-                                        if (obj.is(JavaValueType.WIDE)) {
-                                            JavaWrapper c = stack.pop();
+                                    break;
+                                }
+                                case DUP2_X2: {
+                                    JavaWrapper obj = stack.pop();
+                                    if (obj.is(JavaValueType.WIDE)) {
+                                        JavaWrapper c = stack.pop();
+                                        if (c.is(JavaValueType.WIDE)) {
                                             stack.push(obj);
                                             stack.push(c);
                                             stack.push(obj);
                                         } else {
-                                            JavaWrapper b = stack.pop();
-                                            JavaWrapper c = stack.pop();
-                                            stack.push(b);
-                                            stack.push(obj);
-                                            stack.push(c);
-                                            stack.push(b);
-                                            stack.push(obj);
+                                            JavaWrapper d = stack.pop();
+                                            stack.pushAll(obj, d, c, obj);
                                         }
-                                        break;
-                                    }
-//                                case DUP2_X2: {
-//                                    JavaWrapper obj = stack.pop();
-//                                    JavaWrapper obj1 = stack.pop();
-//                                    JavaWrapper c = stack.pop();
-//                                    JavaWrapper d = stack.pop();
-//                                    stack.push(obj1);
-//                                    stack.push(obj);
-//                                    stack.push(d);
-//                                    stack.push(c);
-//                                    stack.push(obj1);
-//                                    stack.push(obj);
-//                                    break;
-//                                }
-                                    case SWAP: {
-                                        JavaWrapper a = stack.pop();
+                                    } else {
                                         JavaWrapper b = stack.pop();
-                                        stack.push(a);
-                                        stack.push(b);
-                                        break;
-                                    }
-                                    case INEG: {
-                                        JavaWrapper value = stack.pop();
-                                        if (!value.get().is(JavaValueType.UNKNOWN)) {
-                                            stack.push(JavaWrapper.createInteger(this, -value.get().asInt()));
+                                        JavaWrapper c = stack.pop();
+                                        if (c.is(JavaValueType.WIDE)) {
+                                            stack.pushAll(b, obj, c, b, obj);
                                         } else {
-                                            stack.push(JavaWrapper.wrap(new JavaUnknown(this, INTEGER, "INEG " + value)));
+                                            JavaWrapper d = stack.pop();
+                                            stack.pushAll(b, obj, d, c, b, obj);
                                         }
-                                        break;
                                     }
-                                    case LNEG: {
-                                        JavaWrapper value = stack.pop();
-                                        if (!value.get().is(JavaValueType.UNKNOWN)) {
-                                            stack.push(newLong(-value.get().asLong()));
-                                        } else {
-                                            stack.push(JavaWrapper.wrap(new JavaUnknown(this, LONG, "LNEG " + value)));
-                                        }
-                                        break;
+                                    break;
+                                }
+                                case SWAP: {
+                                    JavaWrapper a = stack.pop();
+                                    JavaWrapper b = stack.pop();
+                                    stack.push(a);
+                                    stack.push(b);
+                                    break;
+                                }
+                                case INEG: {
+                                    JavaWrapper value = stack.pop();
+                                    if (!value.get().is(JavaValueType.UNKNOWN)) {
+                                        stack.push(JavaWrapper.createInteger(this, -value.get().asInt()));
+                                    } else {
+                                        stack.push(JavaWrapper.wrap(new JavaUnknown(this, INTEGER, "INEG " + value)));
                                     }
-                                    case FNEG: {
-                                        JavaWrapper value = stack.pop();
-                                        if (!value.get().is(JavaValueType.UNKNOWN)) {
-                                            stack.push(JavaWrapper.createFloat(this, -value.get().asFloat()));
-                                        } else {
-                                            stack.push(JavaWrapper.wrap(new JavaUnknown(this, FLOAT, "FNET " + value)));
-                                        }
-                                        break;
+                                    break;
+                                }
+                                case LNEG: {
+                                    JavaWrapper value = stack.pop();
+                                    if (!value.get().is(JavaValueType.UNKNOWN)) {
+                                        stack.push(newLong(-value.get().asLong()));
+                                    } else {
+                                        stack.push(JavaWrapper.wrap(new JavaUnknown(this, LONG, "LNEG " + value)));
                                     }
-                                    case DNEG: {
-                                        stack.pop();
-                                        JavaWrapper value = stack.pop();
-                                        if (!value.get().is(JavaValueType.UNKNOWN)) {
-                                            stack.push(JavaWrapper.createDouble(this, -value.get().asDouble()));
-                                        } else {
-                                            stack.push(JavaWrapper.wrap(new JavaUnknown(this, DOUBLE, "DNEG " + value)));
-                                        }
-                                        break;
+                                    break;
+                                }
+                                case FNEG: {
+                                    JavaWrapper value = stack.pop();
+                                    if (!value.get().is(JavaValueType.UNKNOWN)) {
+                                        stack.push(JavaWrapper.createFloat(this, -value.get().asFloat()));
+                                    } else {
+                                        stack.push(JavaWrapper.wrap(new JavaUnknown(this, FLOAT, "FNET " + value)));
                                     }
-                                    case IINC: {
-                                        IincInsnNode cast = (IincInsnNode) now;
-                                        if (locals.get(cast.var).get() instanceof JInteger) {
-                                            JInteger integer = (JInteger) locals.get(cast.var).get();
-                                            locals.set(cast.var, JavaWrapper.createInteger(this, integer.asInt() + cast.incr));
-                                        }
-                                        break;
+                                    break;
+                                }
+                                case DNEG: {
+                                    stack.pop();
+                                    JavaWrapper value = stack.pop();
+                                    if (!value.get().is(JavaValueType.UNKNOWN)) {
+                                        stack.push(JavaWrapper.createDouble(this, -value.get().asDouble()));
+                                    } else {
+                                        stack.push(JavaWrapper.wrap(new JavaUnknown(this, DOUBLE, "DNEG " + value)));
                                     }
-                                    case I2L: {
-                                        JavaWrapper top = stack.pop();
-                                        if (!top.get().is(JavaValueType.UNKNOWN)) {
-                                            stack.push(newLong(top.get().asInt()));
-                                        } else {
-                                            stack.push(JavaWrapper.wrap(new JavaUnknown(this, LONG, "I2L " + top.get())));
-                                        }
-                                        break;
+                                    break;
+                                }
+                                case IINC: {
+                                    IincInsnNode cast = (IincInsnNode) now;
+                                    if (locals.get(cast.var).get() instanceof JInteger) {
+                                        JInteger integer = (JInteger) locals.get(cast.var).get();
+                                        locals.set(cast.var, JavaWrapper.createInteger(this, integer.asInt() + cast.incr));
                                     }
-                                    case I2F: {
-                                        JavaWrapper top = stack.pop();
-                                        if (!top.get().is(JavaValueType.UNKNOWN)) {
-                                            stack.push(JavaWrapper.createFloat(this, top.get().asInt()));
-                                        } else {
-                                            stack.push(JavaWrapper.wrap(new JavaUnknown(this, FLOAT, "I2F " + top.get())));
-                                        }
-                                        break;
+                                    break;
+                                }
+                                case I2L: {
+                                    JavaWrapper top = stack.pop();
+                                    if (!top.get().is(JavaValueType.UNKNOWN)) {
+                                        stack.push(newLong(top.get().asInt()));
+                                    } else {
+                                        stack.push(JavaWrapper.wrap(new JavaUnknown(this, LONG, "I2L " + top.get())));
                                     }
-                                    case I2D: {
-                                        JavaWrapper top = stack.pop();
-                                        if (!top.get().is(JavaValueType.UNKNOWN)) {
-                                            stack.push(JavaWrapper.createDouble(this, top.get().asInt()));
-                                        } else {
-                                            stack.push(JavaWrapper.wrap(new JavaUnknown(this, DOUBLE, "I2D " + top.get())));
-                                        }
-                                        break;
+                                    break;
+                                }
+                                case I2F: {
+                                    JavaWrapper top = stack.pop();
+                                    if (!top.get().is(JavaValueType.UNKNOWN)) {
+                                        stack.push(JavaWrapper.createFloat(this, top.get().asInt()));
+                                    } else {
+                                        stack.push(JavaWrapper.wrap(new JavaUnknown(this, FLOAT, "I2F " + top.get())));
                                     }
+                                    break;
+                                }
+                                case I2D: {
+                                    JavaWrapper top = stack.pop();
+                                    if (!top.get().is(JavaValueType.UNKNOWN)) {
+                                        stack.push(JavaWrapper.createDouble(this, top.get().asInt()));
+                                    } else {
+                                        stack.push(JavaWrapper.wrap(new JavaUnknown(this, DOUBLE, "I2D " + top.get())));
+                                    }
+                                    break;
+                                }
 //                        case L2F: {
 //                            JavaValue value = stack.pop();
 //                            if (VERIFY && !(value instanceof JavaTop)) {
@@ -1563,245 +1501,245 @@ public class VirtualMachine {
 //                            stack.push(new JavaFloat((float) stack.pop().doubleValue()));
 //                            break;
 //                        }
-                                    case I2B: {
-                                        stack.push(newByte(stack.pop().get().asByte()));
-                                        break;
+                                case I2B: {
+                                    stack.push(newByte(stack.pop().get().asByte()));
+                                    break;
+                                }
+                                case I2C: {
+                                    JavaValue intValue = stack.pop().get();
+                                    if (!intValue.is(JavaValueType.UNKNOWN)) {
+                                        stack.push(newChar(intValue.asChar()));
+                                    } else {
+                                        stack.push(JavaWrapper.wrap(new JavaUnknown(this, CHARACTER, JavaUnknown.UnknownCause.I2C, intValue)));
                                     }
-                                    case I2C: {
-                                        JavaValue intValue = stack.pop().get();
-                                        if (!intValue.is(JavaValueType.UNKNOWN)) {
-                                            stack.push(newChar(intValue.asChar()));
-                                        } else {
-                                            stack.push(JavaWrapper.wrap(new JavaUnknown(this, CHARACTER, JavaUnknown.UnknownCause.I2C, intValue)));
-                                        }
-                                        break;
+                                    break;
+                                }
+                                case I2S: {
+                                    stack.push(newShort(stack.pop().asPrimitive().asShort()));
+                                    break;
+                                }
+                                case GOTO: {
+                                    JumpInsnNode cast = (JumpInsnNode) now;
+                                    now = cast.label;
+                                    break;
+                                }
+                                case JSR: {
+                                    JumpInsnNode cast = (JumpInsnNode) now;
+                                    stack.push(JavaWrapper.wrap(new JavaAddress(now)));
+                                    now = cast.label;
+                                    break;
+                                }
+                                case RET: {
+                                    VarInsnNode cast = (VarInsnNode) now;
+                                    JavaValue value = locals.get(cast.var).get();
+                                    if (!(value instanceof JavaAddress)) {
+                                        throw new ExecutionException("Expected address on stack");
                                     }
-                                    case I2S: {
-                                        stack.push(newShort(stack.pop().asPrimitive().asShort()));
-                                        break;
+                                    now = ((JavaAddress) value).getReturnAddres();
+                                    break;
+                                }
+                                case TABLESWITCH: {
+                                    int x = stack.pop().get().asInt();
+                                    TableSwitchInsnNode cast = (TableSwitchInsnNode) now;
+                                    if (x - cast.min < cast.labels.size() && x - cast.min >= 0) {
+                                        now = cast.labels.get(x - cast.min);
+                                    } else {
+                                        now = cast.dflt;
                                     }
-                                    case GOTO: {
-                                        JumpInsnNode cast = (JumpInsnNode) now;
-                                        now = cast.label;
-                                        break;
-                                    }
-                                    case JSR: {
-                                        JumpInsnNode cast = (JumpInsnNode) now;
-                                        stack.push(JavaWrapper.wrap(new JavaAddress(now)));
-                                        now = cast.label;
-                                        break;
-                                    }
-                                    case RET: {
-                                        VarInsnNode cast = (VarInsnNode) now;
-                                        JavaValue value = locals.get(cast.var).get();
-                                        if (!(value instanceof JavaAddress)) {
-                                            throw new ExecutionException("Expected address on stack");
-                                        }
-                                        now = ((JavaAddress) value).getReturnAddres();
-                                        break;
-                                    }
-                                    case TABLESWITCH: {
-                                        int x = stack.pop().get().asInt();
-                                        TableSwitchInsnNode cast = (TableSwitchInsnNode) now;
-                                        if (x - cast.min < cast.labels.size() && x - cast.min >= 0) {
-                                            now = cast.labels.get(x - cast.min);
+                                    break;
+                                }
+                                case LOOKUPSWITCH: {
+                                    LookupSwitchInsnNode cast = (LookupSwitchInsnNode) now;
+                                    JavaWrapper indexValue = stack.pop();
+                                    if (!indexValue.is(JavaValueType.UNKNOWN)) {
+                                        Integer index = indexValue.asInt();
+                                        if (cast.keys.indexOf(index) != -1) {
+                                            now = cast.labels.get(cast.keys.indexOf(index));
                                         } else {
                                             now = cast.dflt;
                                         }
-                                        break;
+                                    } else {
+                                        List<JavaWrapper> results = new ArrayList<>();
+                                        results.add(indexValue);
+                                        results.add(execute(execution, stack.copy(), locals.copy(), curInstance, cast.dflt, true));
+                                        for (LabelNode labelNode : cast.labels) {
+                                            results.add(execute(execution, stack.copy(), locals.copy(), curInstance, labelNode, true));
+                                        }
+                                        return JavaWrapper.wrap(new JavaUnknown(this, JavaClass.forName(this, TypeHelper.getTypeByInternalName(this, "java/lang/Object")), JavaUnknown.UnknownCause.LOOKUPSWITCH, results.toArray(new JavaValue[results.size()])));
                                     }
-                                    case LOOKUPSWITCH: {
-                                        LookupSwitchInsnNode cast = (LookupSwitchInsnNode) now;
-                                        JavaWrapper indexValue = stack.pop();
-                                        if (!indexValue.is(JavaValueType.UNKNOWN)) {
-                                            Integer index = indexValue.asInt();
-                                            if (cast.keys.indexOf(index) != -1) {
-                                                now = cast.labels.get(cast.keys.indexOf(index));
-                                            } else {
-                                                now = cast.dflt;
-                                            }
+                                    break;
+                                }
+                                case LRETURN:
+                                case DRETURN:
+                                case IRETURN:
+                                case FRETURN:
+                                case ARETURN: {
+                                    return stack.pop();
+                                }
+                                case RETURN: {
+                                    return null;
+                                }
+                                case GETSTATIC: {
+                                    FieldInsnNode cast = (FieldInsnNode) now;
+
+                                    JavaClass ownerClass = JavaClass.forName(this, cast.owner);
+
+                                    Pair<JavaClass, JavaField> targetField = ownerClass.findFieldNode(cast.name, cast.desc, true);
+                                    if (targetField == null) {
+                                        throw new ExecutionException("null target field for " + cast.owner + " " + cast.name + " " + cast.desc);
+                                    }
+                                    initialize(targetField.getLeft());
+
+                                    HookedFieldGetter hook = getHookedFieldGetter(targetField.getLeft().getClassNode().name, cast.name, cast.desc);
+                                    JavaWrapper value;
+                                    if (hook != null) {
+                                        value = hook.get(execution, null);
+                                    } else {
+                                        value = targetField.getLeft().getStaticField(cast.name, cast.desc);
+                                    }
+
+                                    stack.push(value);
+                                    break;
+                                }
+                                case PUTSTATIC: {
+                                    FieldInsnNode cast = (FieldInsnNode) now;
+                                    JavaWrapper obj = stack.pop();
+
+                                    JavaClass ownerClass = JavaClass.forName(this, cast.owner);
+
+                                    Pair<JavaClass, JavaField> targetField = ownerClass.findFieldNode(cast.name, cast.desc, true);
+                                    initialize(targetField.getLeft());
+
+                                    HookedFieldSetter hook = getHookedFieldSetter(targetField.getLeft().getClassNode().name, cast.name, cast.desc);
+                                    if (hook != null) {
+                                        hook.set(execution, null, obj);
+                                    } else {
+                                        targetField.getLeft().setStaticField(cast.name, cast.desc, obj);
+                                    }
+                                    break;
+                                }
+                                case GETFIELD: {
+                                    JavaWrapper obj = stack.pop();
+                                    FieldInsnNode cast = (FieldInsnNode) now;
+
+                                    JavaClass ownerClass = JavaClass.forName(this, cast.owner);
+
+                                    Pair<JavaClass, JavaField> targetField = ownerClass.findFieldNode(cast.name, cast.desc, true);
+                                    HookedFieldGetter hook = getHookedFieldGetter(targetField.getLeft().getClassNode().name, cast.name, cast.desc);
+
+                                    JavaWrapper value;
+                                    if (hook != null) {
+                                        value = hook.get(execution, obj);
+                                    } else {
+                                        value = ((JavaObject) obj.get()).getField(cast.name, cast.desc);
+                                    }
+
+                                    stack.push(value);
+                                    break;
+                                }
+                                case PUTFIELD: {
+                                    JavaWrapper obj = stack.pop();
+                                    JavaWrapper instance = stack.pop();
+                                    FieldInsnNode cast = (FieldInsnNode) now;
+
+                                    JavaClass ownerClass = JavaClass.forName(this, cast.owner);
+
+                                    Pair<JavaClass, JavaField> targetField = ownerClass.findFieldNode(cast.name, cast.desc, true);
+                                    HookedFieldSetter hook = getHookedFieldSetter(targetField.getLeft().getClassNode().name, cast.name, cast.desc);
+
+                                    if (hook != null) {
+                                        hook.set(execution, instance, obj);
+                                    } else {
+                                        if (instance.get() instanceof JavaUninitialized) {
+                                            ((JavaUninitialized) instance.get()).initializedValue().setField(cast.name, cast.desc, obj);
                                         } else {
-                                            List<JavaWrapper> results = new ArrayList<>();
-                                            results.add(indexValue);
-                                            results.add(execute(execution, stack.copy(), locals.copy(), curInstance, cast.dflt, true));
-                                            for (LabelNode labelNode : cast.labels) {
-                                                results.add(execute(execution, stack.copy(), locals.copy(), curInstance, labelNode, true));
-                                            }
-                                            return JavaWrapper.wrap(new JavaUnknown(this, JavaClass.forName(this, TypeHelper.getTypeByInternalName(this, "java/lang/Object")), JavaUnknown.UnknownCause.LOOKUPSWITCH, results.toArray(new JavaValue[results.size()])));
+                                            ((JavaObject) instance.get()).setField(cast.name, cast.desc, obj);
                                         }
-                                        break;
                                     }
-                                    case LRETURN:
-                                    case DRETURN:
-                                    case IRETURN:
-                                    case FRETURN:
-                                    case ARETURN: {
-                                        return stack.pop();
+                                    break;
+                                }
+                                case ANEWARRAY: {
+                                    TypeInsnNode typeInsnNode = (TypeInsnNode) now;
+                                    int len = stack.pop().get().asInt();
+                                    String type;
+                                    // todo TypeHelper should do this
+                                    if (typeInsnNode.desc.startsWith("[") || (typeInsnNode.desc.startsWith("L") && typeInsnNode.desc.endsWith(";"))) {
+                                        type = "[" + typeInsnNode.desc;
+                                    } else {
+                                        type = "[L" + typeInsnNode.desc + ";";
                                     }
-                                    case RETURN: {
-                                        return null;
-                                    }
-                                    case GETSTATIC: {
-                                        FieldInsnNode cast = (FieldInsnNode) now;
-
-                                        JavaClass ownerClass = JavaClass.forName(this, cast.owner);
-
-                                        Pair<JavaClass, JavaField> targetField = ownerClass.findFieldNode(cast.name, cast.desc, true);
-                                        if (targetField == null) {
-                                            throw new ExecutionException("null target field for " + cast.owner + " " + cast.name + " " + cast.desc);
+                                    stack.push(JavaWrapper.createArray(JavaClass.forName(this, Type.getType(type)), new JavaWrapper[len]));
+                                    break;
+                                }
+                                case ARRAYLENGTH: {
+                                    JavaWrapper obj = stack.pop();
+                                    if (obj.is(JavaValueType.UNKNOWN)) {
+                                        stack.push(JavaWrapper.wrap(new JavaUnknown(this, INTEGER, "ArrayLength on (" + obj + ")")));
+                                    } else {
+                                        if (!obj.is(JavaValueType.ARRAY)) {
+                                            throw new ExecutionException("Not array");
                                         }
-                                        initialize(targetField.getLeft());
-
-                                        HookedFieldGetter hook = getHookedFieldGetter(targetField.getLeft().getClassNode().name, cast.name, cast.desc);
-                                        JavaWrapper value;
-                                        if (hook != null) {
-                                            value = hook.get(execution, null);
-                                        } else {
-                                            value = targetField.getLeft().getStaticField(cast.name, cast.desc);
-                                        }
-
-                                        stack.push(value);
-                                        break;
+                                        stack.push(newInt(obj.asArray().length()));
                                     }
-                                    case PUTSTATIC: {
-                                        FieldInsnNode cast = (FieldInsnNode) now;
-                                        JavaWrapper obj = stack.pop();
-
-                                        JavaClass ownerClass = JavaClass.forName(this, cast.owner);
-
-                                        Pair<JavaClass, JavaField> targetField = ownerClass.findFieldNode(cast.name, cast.desc, true);
-                                        initialize(targetField.getLeft());
-
-                                        HookedFieldSetter hook = getHookedFieldSetter(targetField.getLeft().getClassNode().name, cast.name, cast.desc);
-                                        if (hook != null) {
-                                            hook.set(execution, null, obj);
-                                        } else {
-                                            targetField.getLeft().setStaticField(cast.name, cast.desc, obj);
-                                        }
-                                        break;
+                                    break;
+                                }
+                                case ATHROW: {
+                                    JavaWrapper throwable = stack.pop();
+                                    if (throwable.is(JavaValueType.NULL)) {
+                                        throw newThrowable(VMSymbols.java_lang_NullPointerException);
                                     }
-                                    case GETFIELD: {
-                                        JavaWrapper obj = stack.pop();
-                                        FieldInsnNode cast = (FieldInsnNode) now;
+                                    if (!getSystemDictionary().getJavaLangThrowable().isAssignableFrom(throwable.getJavaClass())) {
+                                        throw new ExecutionException("Expected throwable, got " + throwable.getJavaClass());
+                                    }
+                                    throw new VMException(throwable);
+                                }
+                                case INSTANCEOF: {
+                                    TypeInsnNode cast = (TypeInsnNode) now;
+                                    JavaValue obj = stack.pop().get();
 
-                                        JavaClass ownerClass = JavaClass.forName(this, cast.owner);
+                                    if (obj.isInstanceOf(TypeHelper.parseType(this, cast.desc))) {
+                                        stack.push(JavaWrapper.createInteger(this, 1));
+                                    } else {
+                                        stack.push(JavaWrapper.createInteger(this, 0));
+                                    }
 
-                                        Pair<JavaClass, JavaField> targetField = ownerClass.findFieldNode(cast.name, cast.desc, true);
-                                        HookedFieldGetter hook = getHookedFieldGetter(targetField.getLeft().getClassNode().name, cast.name, cast.desc);
-
-                                        JavaWrapper value;
-                                        if (hook != null) {
-                                            value = hook.get(execution, obj);
-                                        } else {
-                                            value = ((JavaObject) obj.get()).getField(cast.name, cast.desc);
-                                        }
-
-                                        stack.push(value);
-                                        break;
+                                    break;
+                                }
+                                case MONITORENTER: {
+                                    JavaValue inst = stack.pop().get();
+                                    inst.getLock().lock();
+                                    break;
+                                }
+                                case MONITOREXIT: {
+                                    JavaValue inst = stack.pop().get();
+                                    inst.getLock().unlock();
+                                    break;
+                                }
+                                case MULTIANEWARRAY: {
+                                    MultiANewArrayInsnNode cast = (MultiANewArrayInsnNode) now;
+                                    int[] sizes = new int[cast.dims];
+                                    for (int i = cast.dims - 1; i >= 0; i--) {
+                                        sizes[i] = stack.pop().asPrimitive().asInt();
                                     }
-                                    case PUTFIELD: {
-                                        JavaWrapper obj = stack.pop();
-                                        JavaWrapper instance = stack.pop();
-                                        FieldInsnNode cast = (FieldInsnNode) now;
-
-                                        JavaClass ownerClass = JavaClass.forName(this, cast.owner);
-
-                                        Pair<JavaClass, JavaField> targetField = ownerClass.findFieldNode(cast.name, cast.desc, true);
-                                        HookedFieldSetter hook = getHookedFieldSetter(targetField.getLeft().getClassNode().name, cast.name, cast.desc);
-
-                                        if (hook != null) {
-                                            hook.set(execution, instance, obj);
-                                        } else {
-                                            if (instance.get() instanceof JavaUninitialized) {
-                                                ((JavaUninitialized) instance.get()).initializedValue().setField(cast.name, cast.desc, obj);
-                                            } else {
-                                                ((JavaObject) instance.get()).setField(cast.name, cast.desc, obj);
-                                            }
-                                        }
-                                        break;
-                                    }
-                                    case ANEWARRAY: {
-                                        TypeInsnNode typeInsnNode = (TypeInsnNode) now;
-                                        int len = stack.pop().get().asInt();
-                                        String type;
-                                        // todo TypeHelper should do this
-                                        if (typeInsnNode.desc.startsWith("[") || (typeInsnNode.desc.startsWith("L") && typeInsnNode.desc.endsWith(";"))) {
-                                            type = "[" + typeInsnNode.desc;
-                                        } else {
-                                            type = "[L" + typeInsnNode.desc + ";";
-                                        }
-                                        stack.push(JavaWrapper.createArray(JavaClass.forName(this, Type.getType(type)), new JavaWrapper[len]));
-                                        break;
-                                    }
-                                    case ARRAYLENGTH: {
-                                        JavaWrapper obj = stack.pop();
-                                        if (obj.is(JavaValueType.UNKNOWN)) {
-                                            stack.push(JavaWrapper.wrap(new JavaUnknown(this, INTEGER, "ArrayLength on (" + obj + ")")));
-                                        } else {
-                                            if (!obj.is(JavaValueType.ARRAY)) {
-                                                throw new ExecutionException("Not array");
-                                            }
-                                            stack.push(newInt(obj.asArray().length()));
-                                        }
-                                        break;
-                                    }
-                                    case ATHROW: {
-                                        JavaWrapper throwable = stack.pop();
-                                        if (throwable.is(JavaValueType.NULL)) {
-                                            throw newThrowable(VMSymbols.java_lang_NullPointerException);
-                                        }
-                                        if (!getSystemDictionary().getJavaLangThrowable().isAssignableFrom(throwable.getJavaClass())) {
-                                            throw new ExecutionException("Expected throwable, got " + throwable.getJavaClass());
-                                        }
-                                        throw new WrappedException(throwable);
-                                    }
-                                    case INSTANCEOF: {
-                                        TypeInsnNode cast = (TypeInsnNode) now;
-                                        JavaValue obj = stack.pop().get();
-
-                                        if (obj.isInstanceOf(TypeHelper.parseType(this, cast.desc))) {
-                                            stack.push(JavaWrapper.createInteger(this, 1));
-                                        } else {
-                                            stack.push(JavaWrapper.createInteger(this, 0));
-                                        }
-
-                                        break;
-                                    }
-                                    case MONITORENTER: {
-                                        JavaValue inst = stack.pop().get();
-                                        inst.getLock().lock();
-                                        break;
-                                    }
-                                    case MONITOREXIT: {
-                                        JavaValue inst = stack.pop().get();
-                                        inst.getLock().unlock();
-                                        break;
-                                    }
-                                    case MULTIANEWARRAY: {
-                                        MultiANewArrayInsnNode cast = (MultiANewArrayInsnNode) now;
-                                        int[] sizes = new int[cast.dims];
-                                        for (int i = cast.dims - 1; i >= 0; i--) {
-                                            sizes[i] = stack.pop().asPrimitive().asInt();
-                                        }
-                                        Type type = Type.getType(cast.desc);
-                                        JavaWrapper created = ArrayHelper.newInstance(this, type, sizes);
-                                        stack.push(created);
-                                        break;
-                                    }
-                                    case -1: {
-                                        break;
-                                    }
-                                    default: {
-                                        throw new ExecutionException("Unknown opcode " + now.getClass().getSimpleName() + " " + Integer.toHexString(now.getOpcode()) + " " + now);
-                                    }
+                                    Type type = Type.getType(cast.desc);
+                                    JavaWrapper created = ArrayHelper.newInstance(this, type, sizes);
+                                    stack.push(created);
+                                    break;
+                                }
+                                case -1: {
+                                    break;
+                                }
+                                default: {
+                                    throw new ExecutionException("Unknown opcode " + now.getClass().getSimpleName() + " " + Integer.toHexString(now.getOpcode()) + " " + now);
                                 }
                             }
+                        }
 
-                            ExecutionOptions.BreakpointInfo bpinfo = new ExecutionOptions.BreakpointInfo(now, stack, locals);
-                            breakpoints.forEach(k -> k.accept(bpinfo));
+                        ExecutionOptions.BreakpointInfo bpinfo = new ExecutionOptions.BreakpointInfo(now, stack, locals);
+                        breakpoints.values().forEach(k -> k.accept(bpinfo));
 
-                            if (execution.getOptions() != null && execution.getOptions().shouldRecord(now)) {
-                                execution.getOptions().notify(now, bpinfo);
+                        if (execution.getOptions() != null && execution.getOptions().shouldRecord(now)) {
+                            execution.getOptions().notify(now, bpinfo);
 //                                if (snapshots[method.instructions.indexOf(now)] == null) {
 //                                    InstructionSnapshot current = new InstructionSnapshot();
 //                                    current.merge(stack.copy(), locals.copy());
@@ -1809,45 +1747,40 @@ public class VirtualMachine {
 //                                } else {
 //                                    snapshots[method.instructions.indexOf(now)].merge(stack.copy(), locals.copy());
 //                                }
-                            }
+                        }
 
-                            now = now.getNext();
-                        } catch (WrappedException t) {
-                            if (DEBUG_PRINT_EXCEPTIONS) {
-                                JavaWrapper systemOut = systemDictionary.getJavaLangSystem().getStaticField("out", "Ljava/io/PrintStream;");
-                                internalExecute(getSystemDictionary().getJavaLangThrowable().getClassNode(), ASMHelper.findMethod(getSystemDictionary().getJavaLangThrowable().getClassNode(), "printStackTrace", "(Ljava/io/PrintStream;)V"), t.getWrapped(), new JavaWrapper[]{systemOut}, now);
-                            }
-                            JavaWrapper wrapper = t.getWrapped();
-                            if (method.tryCatchBlocks != null) {
-                                for (TryCatchBlockNode tcbn : method.tryCatchBlocks) {
-                                    if (method.instructions.indexOf(tcbn.start) <= method.instructions.indexOf(now) && method.instructions.indexOf(now) < method.instructions.indexOf(tcbn.end)) {
-                                        if (tcbn.type == null || tcbn.type.equals("java/lang/Throwable")) {
+                        now = now.getNext();
+                    } catch (VMException t) {
+                        if (DEBUG_PRINT_EXCEPTIONS) {
+                            printException(t);
+                        }
+                        JavaWrapper wrapper = t.getWrapped();
+                        if (method.tryCatchBlocks != null) {
+                            for (TryCatchBlockNode tcbn : method.tryCatchBlocks) {
+                                if (method.instructions.indexOf(tcbn.start) <= method.instructions.indexOf(now) && method.instructions.indexOf(now) < method.instructions.indexOf(tcbn.end)) {
+                                    if (tcbn.type == null || tcbn.type.equals("java/lang/Throwable")) {
+                                        stack.clear();
+                                        stack.push(wrapper);
+                                        now = tcbn.handler;
+                                        continue forever;
+                                    } else {
+                                        JavaClass type = wrapper.getJavaClass();
+                                        JavaClass target = JavaClass.forName(this, TypeHelper.parseType(this, tcbn.type));
+                                        if (target.isAssignableFrom(type)) {
                                             stack.clear();
                                             stack.push(wrapper);
                                             now = tcbn.handler;
                                             continue forever;
-                                        } else {
-                                            JavaClass type = wrapper.getJavaClass();
-                                            JavaClass target = JavaClass.forName(this, TypeHelper.parseType(this, tcbn.type));
-                                            if (target.isAssignableFrom(type)) {
-                                                stack.clear();
-                                                stack.push(wrapper);
-                                                now = tcbn.handler;
-                                                continue forever;
-                                            }
                                         }
                                     }
                                 }
                             }
-
-                            throw t;
                         }
+
+                        throw t;
                     }
-                } finally {
-                    if (!isBranch)
-                        popStacktrace();
                 }
-            } catch (AbortException | WrappedException | StacktraceException e) {
+            } catch (AbortException | VMException e) {
                 throw e;
             } catch (Throwable e) {
                 try {
@@ -1856,12 +1789,12 @@ public class VirtualMachine {
                     List list = (List) field.get(e);
                     boolean has = false;
                     for (Object o : list) {
-                        if (o instanceof StacktraceException) {
+                        if (o instanceof ConvertedException) {
                             has = true;
                         }
                     }
                     if (!has) {
-                        e.addSuppressed(toThrowable());
+                        e.addSuppressed(convertException(newThrowable(VMSymbols.java_lang_Throwable)));
                     }
                 } catch (Throwable t) {
                     t.printStackTrace();
@@ -1874,6 +1807,8 @@ public class VirtualMachine {
             }
         } finally {
             depth.set(depth.get() - 1);
+            if (!isBranch)
+                popStacktrace();
         }
     }
 
@@ -1906,12 +1841,12 @@ public class VirtualMachine {
         return NULL;
     }
 
-    public WrappedException newThrowable(String clazz, String fmt) {
-        return new WrappedException(newInstance(JavaClass.forName(this, clazz), "(Ljava/lang/String;)V", getString(fmt)));
+    public VMException newThrowable(String clazz, String fmt) {
+        return new VMException(newInstance(JavaClass.forName(this, clazz), "(Ljava/lang/String;)V", getString(fmt)));
     }
 
-    public WrappedException newThrowable(String clazz) {
-        return new WrappedException(newInstance(JavaClass.forName(this, clazz), "()V"));
+    public VMException newThrowable(String clazz) {
+        return new VMException(newInstance(JavaClass.forName(this, clazz), "()V"));
     }
 
     public Map<Class<?>, JavaClass> getLookupMap() {
@@ -1931,8 +1866,68 @@ public class VirtualMachine {
         ThreadOop.shutdown();
     }
 
-    public void printException(WrappedException e) {
-        JavaWrapper systemOut = systemDictionary.getJavaLangSystem().getStaticField("out", "Ljava/io/PrintStream;");
-        internalExecute(getSystemDictionary().getJavaLangThrowable().getClassNode(), ASMHelper.findMethod(getSystemDictionary().getJavaLangThrowable().getClassNode(), "printStackTrace", "(Ljava/io/PrintStream;)V"), e.getWrapped(), new JavaWrapper[]{systemOut}, null);
+    public void printException(VMException e) {
+        internalExecute(getSystemDictionary().getJavaLangThrowable().getClassNode(), ASMHelper.findMethod(getSystemDictionary().getJavaLangThrowable().getClassNode(), "printStackTrace", "()V"), e.getWrapped(), new JavaWrapper[]{}, null);
+    }
+
+    public String exceptionToString(VMException e) {
+        JavaWrapper stringWriter = newInstance(JavaClass.forName(this, "java/io/StringWriter"), "()V");
+        JavaWrapper printWriter = newInstance(JavaClass.forName(this, "java/io/PrintWriter"), "(Ljava/io/Writer;)V", stringWriter);
+        internalExecute(getSystemDictionary().getJavaLangThrowable().getClassNode(), ASMHelper.findMethod(getSystemDictionary().getJavaLangThrowable().getClassNode(), "printStackTrace", "(Ljava/io/PrintStream;)V"), e.getWrapped(), new JavaWrapper[]{printWriter}, null);
+        return convertJavaObjectToString(internalExecute(stringWriter.getJavaClass().getClassNode(), ASMHelper.findMethod(stringWriter.getJavaClass().getClassNode(), "toString", "()Ljava/lang/String;"), stringWriter, new JavaWrapper[]{}, null)).trim();
+    }
+
+    /**
+     * Converts a {@link VMException} into a {@link Throwable}. All properties of Throwable will be preserved,
+     * but custom properties declared by subclasses of Throwable will not. This function is provided as a helper method
+     * to quickly extract useful information from VMException
+     */
+    public ConvertedException convertException(VMException e) {
+        return convertException(e.getWrapped());
+    }
+
+    /**
+     * Converts a {@link VMException} into a {@link Throwable}. All properties of Throwable will be preserved,
+     * but custom properties declared by subclasses of Throwable will not. This function is provided as a helper method
+     * to quickly extract useful information from VMException
+     */
+    public ConvertedException convertException(JavaWrapper e) {
+        if (!getSystemDictionary().getJavaLangThrowable().isAssignableFrom(e.getJavaClass())) {
+            return null;
+        }
+
+        String message = e.getJavaClass().getName();
+        JavaWrapper wrappedMessage = e.asObject().getField("detailMessage", "Ljava/lang/String;");
+        if (wrappedMessage != null) {
+            message += ": " + convertJavaObjectToString(wrappedMessage);
+        }
+        ConvertedException root = new ConvertedException(message);
+
+        List<StackTraceElement> stacktrace = java_lang_Throwable.convert(e.getMetadata(java_lang_Throwable.METADATA_BACKTRACE));
+        root.setStackTrace(stacktrace.toArray(new StackTraceElement[stacktrace.size()]));
+
+        JavaWrapper cause = e.asObject().getField("cause", "Ljava/lang/Throwable;");
+        if (!cause.is(JavaValueType.NULL) && cause.get() != e.get()) {
+            root.initCause(convertException(cause));
+        }
+
+        JavaWrapper suppressedExceptions = e.asObject().getField("suppressedExceptions", "Ljava/util/List;");
+        JavaWrapper suppressedSentinel = getSystemDictionary().getJavaLangThrowable().getStaticField("SUPPRESSED_SENTINEL", "Ljava/util/List;");
+
+        if (suppressedExceptions != suppressedSentinel) {
+            if (!suppressedExceptions.getJavaClass().getClassNode().name.equals("java/util/ArrayList")) {
+                throw new RuntimeException("Expected ArrayList"); // todo this is super lazy defensive programming
+            }
+
+            JavaArray backingArray = suppressedExceptions.asObject().getField("elementData", "[Ljava/lang/Object;").asArray();
+            for (int i = 0; i < backingArray.getSize(); i++) {
+                JavaWrapper suppressedException = backingArray.get(i);
+                if (!suppressedException.is(JavaValueType.NULL)) {
+                    root.addSuppressed(convertException(suppressedException));
+                }
+            }
+        }
+
+        return root;
     }
 }

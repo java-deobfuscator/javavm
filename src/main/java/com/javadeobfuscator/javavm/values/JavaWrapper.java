@@ -24,6 +24,8 @@ import com.javadeobfuscator.javavm.values.prim.JFloat;
 import com.javadeobfuscator.javavm.values.prim.JInteger;
 import com.javadeobfuscator.javavm.values.prim.JPrimitive;
 
+import java.util.*;
+
 public class JavaWrapper extends JavaValue {
 
     private JavaValue _value;
@@ -127,6 +129,31 @@ public class JavaWrapper extends JavaValue {
     @Override
     public int getSize() {
         return _value.getSize();
+    }
+
+    @Override
+    public <T> T getMetadata(String key) {
+        return _value.getMetadata(key);
+    }
+
+    @Override
+    public void setMetadata(String key, Object data) {
+        _value.setMetadata(key, data);
+    }
+
+    @Override
+    public Map<String, Object> getMetadata() {
+        return _value.getMetadata();
+    }
+
+    @Override
+    public void setMetadata(Map<String, Object> metadata0) {
+        _value.setMetadata(metadata0);
+    }
+
+    @Override
+    public <T> T compareAndSwapMetadata(String key, T data, T expected) {
+        return _value.compareAndSwapMetadata(key, data, expected);
     }
 
     public JavaObject asObject() {

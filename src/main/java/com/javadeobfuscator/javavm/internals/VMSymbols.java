@@ -58,7 +58,7 @@ public class VMSymbols {
     public static final String METADATA_FIELD = "metadata/field";
     @Deprecated
     public static final String METADATA_LOADER_DATA = "metadata/loaderdata";
-    ;
+    public static final String java_lang_Throwable = "java/lang/Throwable";
 
     public enum VMIntrinsics {
         NONE,

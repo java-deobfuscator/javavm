@@ -22,6 +22,12 @@ public class Stack {
         _values[_index++] = next;
     }
 
+    public void pushAll(JavaWrapper... next) {
+        for (JavaWrapper w : next) {
+            push(w);
+        }
+    }
+
     public JavaWrapper pop() {
         if (--_index < 0) {
             throw new ExecutionException("Unable to pop operand off empty stack");

@@ -93,9 +93,6 @@ public class java_lang_Object {
                 ThreadOop threadOop = new ThreadOop(inst);
                 uninitialized.initializedValue().setMetadata("oop", threadOop);
             }
-            if (vm.getSystemDictionary().getJavaLangThrowable().isAssignableFrom(uninitialized.getJavaClass())) {
-                uninitialized.initializedValue().setMetadata("throwable", vm.toThrowable());
-            }
             inst.set(uninitialized.initializedValue());
         }));
     }

@@ -29,6 +29,12 @@ public class java_lang_StrictMath {
         vm.hook(HookGenerator.generateUnknownHandlingHook(vm, THIS, "log", "(D)D", true, Cause.ALL, Effect.ALL, (ctx, inst, args) -> {
             return JavaWrapper.createDouble(vm, StrictMath.log(args[0].asDouble()));
         }));
+        vm.hook(HookGenerator.generateUnknownHandlingHook(vm, THIS, "cos", "(D)D", true, Cause.ALL, Effect.ALL, (ctx, inst, args) -> {
+            return vm.newDouble(StrictMath.cos(args[0].asDouble()));
+        }));
+        vm.hook(HookGenerator.generateUnknownHandlingHook(vm, THIS, "sqrt", "(D)D", true, Cause.ALL, Effect.ALL, (ctx, inst, args) -> {
+            return vm.newDouble(StrictMath.sqrt(args[0].asDouble()));
+        }));
         vm.hook(HookGenerator.generateUnknownHandlingHook(vm, THIS, "pow", "(DD)D", true, Cause.ALL, Effect.ALL, (ctx, inst, args) -> {
             return JavaWrapper.createDouble(vm, StrictMath.pow(args[0].asDouble(), args[1].asDouble()));
         }));

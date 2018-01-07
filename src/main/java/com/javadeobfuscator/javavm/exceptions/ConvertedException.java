@@ -1,5 +1,5 @@
 /*
- * Copyright 2017 Sam Sun <github-contact@samczsun.com>
+ * Copyright 2018 Sam Sun <github-contact@samczsun.com>
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,34 +16,23 @@
 
 package com.javadeobfuscator.javavm.exceptions;
 
-public class StacktraceException extends RuntimeException {
-    private String backingMessage;
-
-    public StacktraceException() {
+public class ConvertedException extends Exception {
+    public ConvertedException() {
     }
 
-    public StacktraceException(String message) {
+    public ConvertedException(String message) {
         super(message);
     }
 
-    public StacktraceException(String message, Throwable cause) {
+    public ConvertedException(String message, Throwable cause) {
         super(message, cause);
     }
 
-    public StacktraceException(Throwable cause) {
+    public ConvertedException(Throwable cause) {
         super(cause);
     }
 
-    public StacktraceException(String message, Throwable cause, boolean enableSuppression, boolean writableStackTrace) {
+    public ConvertedException(String message, Throwable cause, boolean enableSuppression, boolean writableStackTrace) {
         super(message, cause, enableSuppression, writableStackTrace);
-    }
-
-    public void setBackingMessage(String bm) {
-        this.backingMessage = bm;
-    }
-
-    @Override
-    public String getMessage() {
-        return super.getMessage() + " Message: " + backingMessage;
     }
 }
