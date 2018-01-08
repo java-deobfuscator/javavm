@@ -490,6 +490,7 @@ public class VirtualMachine {
         java_io_FileInputStream.registerNatives(this);
         java_io_FileOutputStream.registerNatives(this);
         java_io_WinNTFileSystem.registerNatives(this);
+        java_io_UnixFileSystem.registerNatives(this);
         java_io_FileDescriptor.registerNatives(this);
         java_security_AccessController.registerNatives(this);
         sun_reflect_Reflection.registerNatives(this);
