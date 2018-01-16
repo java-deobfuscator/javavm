@@ -81,6 +81,3 @@ buildNumber.properties
 !/.mvn/wrapper/maven-wrapper.jar
 
 *.iml
-
-# Temporary
-src/test/
